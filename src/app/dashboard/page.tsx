@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Toaster, toast } from 'sonner';
 import { EmergencyReport } from '@/lib/types';
 import MapView from '@/components/MapView';
-import { Search, Activity, AlertTriangle, Clock, CheckCircle2, ArrowLeft, Radio, Users, MapPin, Shield, Menu, X, ChevronRight } from 'lucide-react';
+import { Search, Activity, AlertTriangle, Clock, CheckCircle2, ArrowLeft, Radio, Users, MapPin, Shield, Menu, X } from 'lucide-react';
 
 const demoReports: EmergencyReport[] = [
   {
@@ -249,26 +249,26 @@ export default function Dashboard() {
               <p className="mono text-xs">NO INCIDENTS FOUND</p>
             </div>
           ) : (
-            filteredReports.map((report) => (
-              <div
-                key={report.id}
-                onClick={() => {
-                  setSelectedReportId(report.id);
-                  setActiveTab('transcript');
-                  if (window.innerWidth < 768) setShowSidebar(false);
-                }}
-                className={`
-                  p-3 cursor-pointer transition-all border-l-4
-                  ${getUrgencyColor(report.urgency)}
-                  ${selectedReportId === report.id
-                    ? 'tactical-card-active'
-                    : 'bg-[#0F1520] hover:bg-[#1C2738] border-[#1E3A5F]'
-                  }
-                `}
-              >
+                filteredReports.map((report) => (
+                  <button
+                    key={report.id}
+                    onClick={() => {
+                      setSelectedReportId(report.id);
+                      setActiveTab('transcript');
+                      if (window.innerWidth < 768) setShowSidebar(false);
+                    }}
+                    className={`
+                      w-full text-left p-3 cursor-pointer transition-colors border-l-4 focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:outline-none
+                      ${getUrgencyColor(report.urgency)}
+                      ${selectedReportId === report.id
+                        ? 'tactical-card-active'
+                        : 'bg-[#0F1520] hover:bg-[#1C2738] border-[#1E3A5F]'
+                      }
+                    `}
+                  >
                 <div className="flex items-start justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">
+                    <span className="text-lg" aria-hidden="true">
                       {report.incident_type === 'medical' ? '🏥' :
                        report.incident_type === 'fire' ? '🔥' :
                        report.incident_type === 'accident' ? '🚗' :
@@ -304,11 +304,11 @@ export default function Dashboard() {
                     {report.status.toUpperCase()}
                   </Badge>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+                  </button>
+                ))
+              )}
+            </div>
+          </ScrollArea>
     </>
   );
 
@@ -321,17 +321,14 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <Sheet>
             <SheetTrigger>
-              <Button variant="ghost" size="icon" className="md:hidden text-[#9CA3AF] cursor-pointer">
+              <Button variant="ghost" size="icon" className="md:hidden text-[#9CA3AF] cursor-pointer" aria-label="Open incidents menu">
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[320px] bg-[#0F1520] border-[#1E3A5F] p-0">
               <div className="h-full flex flex-col">
-                <div className="p-3 border-b border-[#1E3A5F] flex items-center justify-between">
+                <div className="p-3 border-b border-[#1E3A5F]">
                   <span className="data-label">INCIDENTS</span>
-                  <Button variant="ghost" size="icon" className="cursor-pointer">
-                    <X className="w-4 h-4" />
-                  </Button>
                 </div>
                 <SidebarContent />
               </div>

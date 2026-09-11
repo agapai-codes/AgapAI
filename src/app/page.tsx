@@ -75,10 +75,13 @@ export default function Home() {
     // Simulate progress
     const progressInterval = setInterval(() => {
       setProcessingProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + 10;
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 15;
       });
-    }, 200);
+    }, 300);
 
     try {
       const extracted = await extractEmergencyInfo(textToProcess);
@@ -98,9 +101,14 @@ export default function Home() {
       setReport(newReport);
       setSystemStatus('online');
 
+    // Store report
+    try {
       const existing = JSON.parse(localStorage.getItem('agap-reports') || '[]');
       existing.unshift(newReport);
       localStorage.setItem('agap-reports', JSON.stringify(existing));
+    } catch (e) {
+      console.warn('Failed to save report to localStorage:', e);
+    }
 
       toast.success('REPORT PROCESSED', {
         description: `${newReport.incident_type.toUpperCase()} | ${newReport.urgency.toUpperCase()} PRIORITY`,
@@ -171,7 +179,7 @@ export default function Home() {
               <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-[#1C2738] flex items-center justify-center border border-[#1E3A5F]">
-                    <span className="text-2xl">{
+                    <span className="text-2xl" aria-hidden="true">{
                       report.incident_type === 'medical' ? '🏥' :
                       report.incident_type === 'fire' ? '🔥' :
                       report.incident_type === 'accident' ? '🚗' :

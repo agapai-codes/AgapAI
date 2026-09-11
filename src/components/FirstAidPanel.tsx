@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 
 interface FirstAidPanelProps {
   instruction: string;
-  incidentType: string;
+  incidentType?: string;
 }
 
 export default function FirstAidPanel({ instruction, incidentType }: FirstAidPanelProps) {

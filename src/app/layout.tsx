@@ -3,8 +3,8 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'AgapAI — Emergency Response Command Center',
