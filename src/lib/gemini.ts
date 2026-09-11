@@ -24,9 +24,11 @@ export async function extractEmergencyInfo(transcript: string): Promise<Omit<Eme
     incident_type: data.incident_type || 'other',
     condition: data.condition || 'unknown',
     location_description: data.location_description || 'location unknown',
-    people_affected: data.people_affected || 1,
+    people_affected: typeof data.people_affected === 'number' ? data.people_affected : 1,
     hazards: Array.isArray(data.hazards) ? data.hazards : [],
-    urgency: ['critical', 'high', 'medium', 'low'].includes(data.urgency) ? data.urgency : 'medium',
+    urgency: VALID_URGENCIES.includes(data.urgency) ? data.urgency : 'medium',
     urgency_reason: data.urgency_reason || 'Unable to determine urgency',
   };
 }
+
+const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
