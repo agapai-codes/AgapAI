@@ -51,13 +51,27 @@ export async function extractEmergencyInfo(transcript: string): Promise<Omit<Eme
   }
 
   const data = await response.json();
+  
+  // Validate response structure
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+    throw new Error('Invalid API response structure');
+  }
+  
   const text = data.candidates[0].content.parts[0].text;
+  if (!text) {
+    throw new Error('Empty response from AI');
+  }
 
   // Parse JSON from response (handle markdown code blocks)
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  const jsonMatch = text.match(/\{[\s\S]*?\}/);
   if (!jsonMatch) throw new Error('Failed to parse AI response');
 
   const parsed = JSON.parse(jsonMatch[0]);
+
+  // Validate required fields
+  if (!parsed.incident_type || !parsed.condition || !parsed.urgency) {
+    throw new Error('AI response missing required fields');
+  }
 
   return {
     transcript,
@@ -65,8 +79,8 @@ export async function extractEmergencyInfo(transcript: string): Promise<Omit<Eme
     condition: parsed.condition || 'unknown',
     location_description: parsed.location_description || 'location unknown',
     people_affected: parsed.people_affected || 1,
-    hazards: parsed.hazards || [],
-    urgency: parsed.urgency || 'medium',
+    hazards: Array.isArray(parsed.hazards) ? parsed.hazards : [],
+    urgency: ['critical', 'high', 'medium', 'low'].includes(parsed.urgency) ? parsed.urgency : 'medium',
     urgency_reason: parsed.urgency_reason || 'Unable to determine urgency',
   };
 }
