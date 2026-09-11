@@ -237,6 +237,7 @@ export default function Home() {
           <p className="text-[#9CA3AF] max-w-md">
             Your voice becomes the emergency report
           </p>
+          <p className="text-[#6B7280] text-xs mt-2">IEEE SumpAI 2026 — MSU-IIT</p>
         </div>
 
         {/* SOS Button */}
