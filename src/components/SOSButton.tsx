@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface SOSButtonProps {
@@ -9,20 +10,32 @@ interface SOSButtonProps {
 }
 
 export default function SOSButton({ onClick, isActive }: SOSButtonProps) {
-  return (
+  const button = (
     <Button
       onClick={onClick}
-      size="lg"
       className={cn(
-        "relative w-48 h-48 rounded-full text-3xl font-bold tracking-widest",
-        "transition-all duration-300 cursor-pointer",
+        "relative w-40 h-40 md:w-48 md:h-48 text-2xl md:text-3xl font-bold tracking-widest mono",
+        "transition-all duration-200 cursor-pointer rounded-none",
         isActive
-          ? "bg-[#EF4444] text-white critical-pulse shadow-[0_0_60px_rgba(239,68,68,0.8)]"
-          : "bg-[#EF4444] text-white sos-pulse hover:bg-[#DC2626] shadow-[0_0_30px_rgba(239,68,68,0.5)] hover:shadow-[0_0_50px_rgba(239,68,68,0.8)]"
+          ? "bg-[#DC2626] text-white critical-pulse shadow-[0_0_40px_rgba(220,38,38,0.6)] border-2 border-[#F87171]"
+          : "bg-[#DC2626] text-white sos-pulse hover:bg-[#B91C1C] shadow-[0_0_20px_rgba(220,38,38,0.4)] border-2 border-[#DC2626] hover:border-[#F87171]"
       )}
     >
-      <div className="absolute inset-0 rounded-full border-4 border-[#EF4444]/40 animate-ping" />
-      <span className="relative z-10">{isActive ? 'STOP' : 'SOS'}</span>
+      {isActive && (
+        <div className="absolute inset-0 border-2 border-[#F87171]/50 animate-ping" />
+      )}
+      <span className="relative z-10">{isActive ? 'DEACTIVATE' : 'SOS'}</span>
     </Button>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        {button}
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{isActive ? 'Click to stop recording' : 'Click to activate emergency mode'}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }

@@ -26,119 +26,101 @@ const incidentIcons: Record<string, string> = {
 export default function ReportCard({ report, isSelected, onUpdateStatus }: ReportCardProps) {
   return (
     <div className={cn(
-      "bg-[#111827] backdrop-blur-sm rounded-lg border transition-all duration-200",
+      "bg-[#0F1520] border transition-all duration-150",
       isSelected
-        ? "border-[#3B82F6] shadow-[0_0_20px_rgba(59,130,246,0.15)]"
-        : "border-[#374151] hover:border-[#3B82F6]/50"
+        ? "border-[#3B82F6] shadow-[0_0_15px_rgba(59,130,246,0.15)]"
+        : "border-[#1E3A5F] hover:border-[#3B82F6]/50"
     )}>
-      <div className="p-4 pb-0">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#1F2937] flex items-center justify-center">
-              <span className="text-xl">{incidentIcons[report.incident_type] || '📋'}</span>
-            </div>
-            <div>
-              <h3 className="text-[#F9FAFB] font-bold text-sm capitalize">
-                {report.incident_type.replace('_', ' ')}
-              </h3>
-              <p className="text-[#9CA3AF] text-xs">{report.location_description}</p>
-            </div>
+      {/* Header */}
+      <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-[#1C2738] flex items-center justify-center border border-[#1E3A5F]">
+            <span className="text-xl">{incidentIcons[report.incident_type] || '📋'}</span>
           </div>
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-wide">{report.incident_type.replace('_', ' ')}</h3>
+            <p className="text-[#6B7280] text-xs mono">{report.id}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           <Badge className={cn(
-            "text-[10px] font-bold",
-            report.urgency === 'critical' ? 'bg-[#EF4444] text-white' :
-            report.urgency === 'high' ? 'bg-[#F97316] text-white' :
-            report.urgency === 'medium' ? 'bg-[#EAB308] text-[#0A0E17]' :
-            'bg-[#22C55E] text-white'
+            "text-[10px] font-bold rounded-none mono",
+            report.urgency === 'critical' ? 'bg-[#DC2626] text-white' :
+            report.urgency === 'high' ? 'bg-[#F59E0B] text-[#080C14]' :
+            report.urgency === 'medium' ? 'bg-[#3B82F6] text-white' :
+            'bg-[#10B981] text-white'
           )}>
             {report.urgency.toUpperCase()}
           </Badge>
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Info Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <div className="bg-[#1F2937] rounded-lg p-2 border border-[#374151]">
-            <p className="text-[#6B7280] text-[10px] uppercase tracking-wide">Condition</p>
-            <p className="text-[#F9FAFB] font-medium text-xs capitalize mt-0.5">{report.condition}</p>
-          </div>
-          <div className="bg-[#1F2937] rounded-lg p-2 border border-[#374151]">
-            <p className="text-[#6B7280] text-[10px] uppercase tracking-wide">People</p>
-            <p className="text-[#F9FAFB] font-medium text-xs mt-0.5">{report.people_affected}</p>
-          </div>
-          <div className="bg-[#1F2937] rounded-lg p-2 border border-[#374151]">
-            <p className="text-[#6B7280] text-[10px] uppercase tracking-wide">Status</p>
-            <p className={cn(
-              "font-medium text-xs mt-0.5 capitalize",
-              report.status === 'pending' ? 'text-[#EAB308]' :
-              report.status === 'dispatched' ? 'text-[#3B82F6]' :
-              'text-[#22C55E]'
-            )}>{report.status}</p>
-          </div>
-          <div className="bg-[#1F2937] rounded-lg p-2 border border-[#374151]">
-            <p className="text-[#6B7280] text-[10px] uppercase tracking-wide">Time</p>
-            <p className="text-[#F9FAFB] font-medium text-xs mt-0.5">
-              {new Date(report.timestamp).toLocaleTimeString()}
-            </p>
-          </div>
+      {/* Data Grid */}
+      <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-[#080C14] p-2 border border-[#1E3A5F]">
+          <p className="data-label mb-1">CONDITION</p>
+          <p className="text-[#F9FAFB] font-medium text-xs capitalize">{report.condition}</p>
         </div>
-
-        {/* Hazards */}
-        {report.hazards.length > 0 && (
-          <div>
-            <p className="text-[#6B7280] text-[10px] uppercase tracking-wide mb-1.5">Hazards</p>
-            <div className="flex flex-wrap gap-1.5">
-              {report.hazards.map((hazard, i) => (
-                <Badge key={i} variant="outline" className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/30 text-[10px]">
-                  {hazard}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Transcript */}
-        <div>
-          <p className="text-[#6B7280] text-[10px] uppercase tracking-wide mb-1.5">Original Transcript</p>
-          <div className="bg-[#1F2937] rounded-lg p-3 border border-[#374151]">
-            <p className="text-[#F9FAFB] italic text-xs leading-relaxed">&quot;{report.transcript}&quot;</p>
-          </div>
+        <div className="bg-[#080C14] p-2 border border-[#1E3A5F]">
+          <p className="data-label mb-1">PEOPLE</p>
+          <p className="text-[#F9FAFB] font-medium text-xs mono">{report.people_affected}</p>
         </div>
-
-        {/* First Aid */}
-        <FirstAidPanel instruction={report.first_aid} incidentType={report.incident_type} />
-
-        {/* Actions */}
-        {onUpdateStatus && (
-          <div className="flex items-center justify-between pt-3 border-t border-[#374151]">
-            <p className="text-[10px] text-[#6B7280]">
-              AI: <span className="text-[#9CA3AF]">{report.urgency_reason}</span>
-            </p>
-            <div className="flex gap-2">
-              {report.status === 'pending' && (
-                <Button
-                  size="sm"
-                  onClick={() => onUpdateStatus(report.id, 'dispatched')}
-                  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs cursor-pointer h-7"
-                >
-                  Dispatch
-                </Button>
-              )}
-              {(report.status === 'pending' || report.status === 'dispatched') && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onUpdateStatus(report.id, 'resolved')}
-                  className="text-[#22C55E] border-[#22C55E]/30 hover:bg-[#22C55E]/10 text-xs cursor-pointer h-7"
-                >
-                  Resolved
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+        <div className="bg-[#080C14] p-2 border border-[#1E3A5F]">
+          <p className="data-label mb-1">STATUS</p>
+          <p className={cn(
+            "font-medium text-xs uppercase mono",
+            report.status === 'pending' ? 'text-[#F59E0B]' :
+            report.status === 'dispatched' ? 'text-[#3B82F6]' :
+            'text-[#10B981]'
+          )}>{report.status}</p>
+        </div>
+        <div className="bg-[#080C14] p-2 border border-[#1E3A5F]">
+          <p className="data-label mb-1">TIME</p>
+          <p className="text-[#F9FAFB] font-medium text-xs mono">{new Date(report.timestamp).toLocaleTimeString()}</p>
+        </div>
       </div>
+
+      {/* Hazards */}
+      {report.hazards.length > 0 && (
+        <div className="px-4 pb-4">
+          <p className="data-label mb-2">HAZARDS</p>
+          <div className="flex flex-wrap gap-1.5">
+            {report.hazards.map((hazard, i) => (
+              <Badge key={i} variant="outline" className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/30 text-[10px] rounded-none mono">
+                {hazard.toUpperCase()}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      {onUpdateStatus && (
+        <div className="p-4 border-t border-[#1E3A5F] flex items-center justify-between">
+          <p className="data-label truncate max-w-[200px]">AI: {report.urgency_reason}</p>
+          <div className="flex gap-2">
+            {report.status !== 'dispatched' && (
+              <Button
+                size="sm"
+                onClick={() => onUpdateStatus(report.id, 'dispatched')}
+                className="bg-[#3B82F6] hover:bg-[#2563EB] text-white cursor-pointer text-xs h-7 rounded-none"
+              >
+                DISPATCH
+              </Button>
+            )}
+            {report.status !== 'resolved' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onUpdateStatus(report.id, 'resolved')}
+                className="text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/10 cursor-pointer text-xs h-7 rounded-none"
+              >
+                RESOLVE
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
