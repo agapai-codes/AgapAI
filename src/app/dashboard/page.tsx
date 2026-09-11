@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Toaster, toast } from 'sonner';
 import { EmergencyReport } from '@/lib/types';
 import MapView from '@/components/MapView';
-import { Search, Activity, AlertTriangle, Clock, CheckCircle2, ArrowLeft, Radio, Users, MapPin, Shield, Menu, X } from 'lucide-react';
+import { Search, Activity, AlertTriangle, Clock, CheckCircle2, ArrowLeft, Radio, Users, MapPin, Shield, Menu } from 'lucide-react';
 
 const demoReports: EmergencyReport[] = [
   {
