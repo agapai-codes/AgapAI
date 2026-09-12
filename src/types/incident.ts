@@ -16,11 +16,21 @@ export interface Incident {
   status: IncidentStatus;
   timestamp: string;
   reporter: string;
+  reporter_email?: string;
   urgency?: UrgencyLevel;
   urgency_reason?: string;
   people_affected?: number;
   hazards?: string[];
   condition?: string;
+  confidence?: number;
+  consciousness?: boolean;
+  breathing?: boolean;
+  bleeding?: boolean;
+  assigned_responder_id?: string;
+  assigned_responder_name?: string;
+  resolution_notes?: string;
+  dispatched_at?: string;
+  resolved_at?: string;
 }
 
 export interface ApiResponse<T> {

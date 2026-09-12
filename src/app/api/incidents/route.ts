@@ -27,7 +27,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { type, location, description, reporter, coordinates, urgency, urgency_reason, people_affected, condition, hazards, transcript } = body ?? {};
+    const { type, location, description, reporter, coordinates, urgency, urgency_reason,
+            people_affected, condition, hazards, transcript, reporter_email,
+            confidence, consciousness, breathing, bleeding } = body ?? {};
 
     if (!type || !VALID_TYPES.includes(type)) {
       return NextResponse.json(
@@ -61,6 +63,11 @@ export async function POST(request: NextRequest) {
         condition: typeof condition === 'string' ? condition.slice(0, 1000) : undefined,
         hazards: Array.isArray(hazards) ? hazards.filter((h: unknown): h is string => typeof h === 'string').slice(0, 20) : undefined,
         transcript: typeof transcript === 'string' ? transcript.slice(0, 10000) : undefined,
+        reporter_email: typeof reporter_email === 'string' ? reporter_email : undefined,
+        confidence: typeof confidence === 'number' ? Math.min(Math.max(0, confidence), 1) : undefined,
+        consciousness: typeof consciousness === 'boolean' ? consciousness : undefined,
+        breathing: typeof breathing === 'boolean' ? breathing : undefined,
+        bleeding: typeof bleeding === 'boolean' ? bleeding : undefined,
       }
     );
 

@@ -7,8 +7,8 @@ import LiveMap from '../components/LiveMap';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { getFirstAid } from '../lib/firstAid';
-import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, MapPin, Users, Clock, ChevronDown, ChevronUp, History, Edit3 } from 'lucide-react';
-import type { Incident, IncidentStatus, IncidentType, UrgencyLevel } from '../types/incident';
+import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, MapPin, Users, Clock, History, Edit3, UserPlus, Link2 } from 'lucide-react';
+import type { Incident, IncidentStatus, UrgencyLevel } from '../types/incident';
 
 const INCIDENT_ICONS: Record<string, string> = { FIRE: '🔥', ACCIDENT: '🚗', MEDICAL: '🏥', DISASTER: '🌪️', VIOLENCE: '⚠️', HAZARDOUS: '☢️', MISSING_PERSON: '🔍' };
 
@@ -40,6 +40,13 @@ const STATUS_STYLE: Record<IncidentStatus, { color: string; border: string; bg: 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'];
 const ALL_URGENCIES: UrgencyLevel[] = ['critical', 'high', 'medium', 'low'];
 
+interface Responder {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+}
+
 interface StatusHistoryEntry {
   id: string;
   old_status: string | null;
@@ -49,9 +56,16 @@ interface StatusHistoryEntry {
   created_at: string;
 }
 
+function confidenceBar(c: number): { color: string; label: string } {
+  if (c >= 0.8) return { color: '#22c55e', label: 'HIGH' };
+  if (c >= 0.6) return { color: '#eab308', label: 'MEDIUM' };
+  if (c >= 0.4) return { color: '#f97316', label: 'LOW' };
+  return { color: '#ef4444', label: 'VERY LOW' };
+}
+
 export default function DispatcherDashboard() {
-  const { user, loading: authLoading } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, getHistory } = useIncidents();
+  const { user } = useAuth();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, getHistory, assignResponder, resolveIncident, getRelated, getResponders } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [activeIncident, setActiveIncident] = useState<Incident | null>(null);
@@ -61,6 +75,12 @@ export default function DispatcherDashboard() {
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [editingUrgency, setEditingUrgency] = useState<string | null>(null);
+  const [showAssign, setShowAssign] = useState<string | null>(null);
+  const [responders, setResponders] = useState<Responder[]>([]);
+  const [relatedIncidents, setRelatedIncidents] = useState<Incident[]>([]);
+  const [showRelated, setShowRelated] = useState(false);
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [showResolve, setShowResolve] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -69,6 +89,13 @@ export default function DispatcherDashboard() {
     return () => clearInterval(t);
   }, []);
 
+  // Load responders when assignment dropdown opens
+  useEffect(() => {
+    if (showAssign) {
+      getResponders().then(setResponders);
+    }
+  }, [showAssign, getResponders]);
+
   const metrics = useMemo(() => ({
     total: incidents.length,
     critical: incidents.filter(i => i.urgency === 'critical' && i.status !== 'RESOLVED').length,
@@ -76,7 +103,6 @@ export default function DispatcherDashboard() {
     resolved: incidents.filter(i => i.status === 'RESOLVED').length,
   }), [incidents]);
 
-  // Sort by urgency priority (critical first), then by time
   const filtered = useMemo(() => {
     return incidents
       .filter(i => {
@@ -116,6 +142,30 @@ export default function DispatcherDashboard() {
     }
   };
 
+  const handleAssign = async (incidentId: string, responderId: string) => {
+    const updated = await assignResponder(incidentId, responderId);
+    if (updated) {
+      setActiveIncident(updated);
+      setShowAssign(null);
+      toast.success('Responder assigned');
+    } else {
+      toast.error('Failed to assign responder');
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!activeIncident) return;
+    const updated = await resolveIncident(activeIncident.id, resolveNotes || 'Resolved by dispatcher');
+    if (updated) {
+      setActiveIncident(updated);
+      setShowResolve(false);
+      setResolveNotes('');
+      toast.success('Incident resolved');
+    } else {
+      toast.error('Failed to resolve incident');
+    }
+  };
+
   const loadHistory = useCallback(async (id: string) => {
     setHistoryLoading(true);
     setShowHistory(true);
@@ -123,6 +173,12 @@ export default function DispatcherDashboard() {
     setHistory(data || []);
     setHistoryLoading(false);
   }, [getHistory]);
+
+  const loadRelated = useCallback(async (inc: Incident) => {
+    setShowRelated(true);
+    const data = await getRelated(inc.id);
+    setRelatedIncidents(data || []);
+  }, [getRelated]);
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime();
@@ -155,10 +211,7 @@ export default function DispatcherDashboard() {
               {user.role}
             </span>
           )}
-          <button
-            onClick={refresh}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(24,24,27,0.8)', border: '1px solid #27272a', borderRadius: '6px', color: '#a1a1aa', cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px' }}
-          >
+          <button onClick={refresh} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(24,24,27,0.8)', border: '1px solid #27272a', borderRadius: '6px', color: '#a1a1aa', cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isLive ? '#22c55e' : '#71717a' }} />
             <span style={{ color: '#71717a' }}>MODE:</span> COMMANDER
           </button>
@@ -193,13 +246,8 @@ export default function DispatcherDashboard() {
           <div style={{ padding: '16px', borderBottom: '1px solid #18181b', background: 'rgba(9,9,11,0.8)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
             <div style={{ position: 'relative', marginBottom: '12px' }}>
               <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
-              <input
-                placeholder="Search incidents, conditions, locations..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                aria-label="Search incidents"
-                style={{ paddingLeft: '36px', background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', height: '40px', width: '100%', borderRadius: '8px', outline: 'none', fontSize: '13px' }}
-              />
+              <input placeholder="Search incidents, conditions, locations..." value={search} onChange={e => setSearch(e.target.value)} aria-label="Search incidents"
+                style={{ paddingLeft: '36px', background: '#18181b', border: '1px solid #27272a', color: '#e4e4e7', height: '40px', width: '100%', borderRadius: '8px', outline: 'none', fontSize: '13px' }} />
             </div>
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
               {ALL_TYPES.map(type => (
@@ -209,11 +257,7 @@ export default function DispatcherDashboard() {
                 </button>
               ))}
             </div>
-            {error && (
-              <p style={{ marginTop: '10px', fontSize: '11px', color: '#f87171' }}>
-                {error} — showing cached data
-              </p>
-            )}
+            {error && <p style={{ marginTop: '10px', fontSize: '11px', color: '#f87171' }}>{error} — showing cached data</p>}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -224,38 +268,27 @@ export default function DispatcherDashboard() {
               const status = STATUS_STYLE[inc.status];
               const urgency = URGENCY_STYLE[inc.urgency || 'medium'];
               const isSelected = activeIncident?.id === inc.id;
+              const conf = inc.confidence != null ? confidenceBar(inc.confidence) : null;
+
               return (
-                <div key={inc.id} onClick={() => { setActiveIncident(inc); setShowHistory(false); }} role="button" tabIndex={0}
-                  aria-label={`${inc.type} incident at ${inc.location} - ${inc.status} - ${inc.urgency || 'medium'} urgency`}
+                <div key={inc.id} onClick={() => { setActiveIncident(inc); setShowHistory(false); setShowRelated(false); setShowResolve(false); }}
+                  role="button" tabIndex={0} aria-label={`${inc.type} incident at ${inc.location}`}
                   onKeyDown={e => e.key === 'Enter' && setActiveIncident(inc)}
-                  style={{
-                    background: 'rgba(24,24,27,0.4)',
-                    border: `1px solid ${isSelected ? '#3f3f46' : '#27272a'}`,
-                    borderLeft: `4px solid ${urgency.color}`,
-                    borderRadius: '12px',
-                    padding: '14px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    boxShadow: isSelected ? '0 0 20px rgba(0,0,0,0.3)' : 'none',
-                  }}>
-                  {/* Header row */}
+                  style={{ background: 'rgba(24,24,27,0.4)', border: `1px solid ${isSelected ? '#3f3f46' : '#27272a'}`, borderLeft: `4px solid ${urgency.color}`, borderRadius: '12px', padding: '14px', cursor: 'pointer', transition: 'all 0.15s', boxShadow: isSelected ? '0 0 20px rgba(0,0,0,0.3)' : 'none' }}>
+
+                  {/* Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                     <span style={{ fontSize: '16px' }}>{INCIDENT_ICONS[inc.type] || '📋'}</span>
                     <span style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', color: config.color }}>{inc.type.replace('_', ' ')}</span>
-                    <span style={{ fontSize: '9px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '6px', border: `1px solid ${status.border}`, color: status.color, background: status.bg }}>
-                      {inc.status}
-                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '6px', border: `1px solid ${status.border}`, color: status.color, background: status.bg }}>{inc.status}</span>
                     <span style={{ marginLeft: 'auto', fontSize: '9px', fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '6px', border: `1px solid ${urgency.border}`, color: urgency.color, background: urgency.bg, cursor: 'pointer', position: 'relative' }}
                       onClick={(e) => { e.stopPropagation(); setEditingUrgency(editingUrgency === inc.id ? null : inc.id); }}>
                       {inc.urgency || 'medium'}
                       {editingUrgency === inc.id && (
-                        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '6px', zIndex: 30, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '100px' }}
-                          onClick={e => e.stopPropagation()}>
+                        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '6px', zIndex: 30, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '100px' }} onClick={e => e.stopPropagation()}>
                           {ALL_URGENCIES.map(u => (
                             <button key={u} onClick={(e) => { e.stopPropagation(); handleUrgencyOverride(inc.id, u); }}
-                              style={{ fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                background: u === (inc.urgency || 'medium') ? URGENCY_STYLE[u].bg : 'transparent',
-                                color: URGENCY_STYLE[u].color }}>
+                              style={{ fontSize: '10px', fontWeight: 700, padding: '4px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer', textAlign: 'left', background: u === (inc.urgency || 'medium') ? URGENCY_STYLE[u].bg : 'transparent', color: URGENCY_STYLE[u].color }}>
                               {u.toUpperCase()}
                             </button>
                           ))}
@@ -264,23 +297,32 @@ export default function DispatcherDashboard() {
                     </span>
                   </div>
 
-                  {/* Description */}
                   <p style={{ fontSize: '12px', color: '#d4d4d8', lineHeight: 1.5, marginBottom: '6px' }}>{inc.description}</p>
 
-                  {/* Condition + People */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                  {/* Condition + People + Confidence */}
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                     {inc.condition && (
                       <span style={{ fontSize: '10px', color: '#a1a1aa', background: 'rgba(39,39,42,0.6)', padding: '2px 6px', borderRadius: '4px' }}>
-                        <Edit3 size={9} style={{ marginRight: '3px', verticalAlign: 'middle' }} />
-                        {inc.condition}
+                        <Edit3 size={9} style={{ marginRight: '3px', verticalAlign: 'middle' }} />{inc.condition}
                       </span>
                     )}
                     {inc.people_affected && inc.people_affected > 1 && (
                       <span style={{ fontSize: '10px', color: '#a1a1aa', background: 'rgba(39,39,42,0.6)', padding: '2px 6px', borderRadius: '4px' }}>
-                        <Users size={9} style={{ marginRight: '3px', verticalAlign: 'middle' }} />
-                        {inc.people_affected} people
+                        <Users size={9} style={{ marginRight: '3px', verticalAlign: 'middle' }} />{inc.people_affected}
                       </span>
                     )}
+                    {conf && (
+                      <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: `${conf.color}15`, color: conf.color, border: `1px solid ${conf.color}30` }}>
+                        AI {conf.label} ({Math.round((inc.confidence || 0) * 100)}%)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Vitals */}
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                    {inc.consciousness === false && <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>UNCONSCIOUS</span>}
+                    {inc.breathing === false && <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>NOT BREATHING</span>}
+                    {inc.bleeding && <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>BLEEDING</span>}
                   </div>
 
                   {/* Hazards */}
@@ -292,47 +334,88 @@ export default function DispatcherDashboard() {
                     </div>
                   )}
 
-                  {/* Footer: location + time */}
+                  {/* Footer */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '10px', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={10} />{inc.location}</span>
                     <span style={{ fontSize: '9px', color: '#52525b', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '3px' }}><Clock size={9} />{timeAgo(inc.timestamp)}</span>
                   </div>
 
+                  {/* Assigned responder badge */}
+                  {inc.assigned_responder_name && (
+                    <div style={{ marginTop: '6px', fontSize: '10px', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <UserPlus size={10} /> Assigned: {inc.assigned_responder_name}
+                    </div>
+                  )}
+
                   {/* Selected: expanded actions */}
                   {isSelected && (
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #27272a' }}>
-                      {/* Urgency reason */}
-                      {inc.urgency_reason && (
-                        <p style={{ fontSize: '11px', color: '#71717a', marginBottom: '10px', fontStyle: 'italic' }}>
-                          <span style={{ color: urgency.color, fontWeight: 600 }}>AI:</span> {inc.urgency_reason}
-                        </p>
-                      )}
+                      {inc.urgency_reason && <p style={{ fontSize: '11px', color: '#71717a', marginBottom: '10px', fontStyle: 'italic' }}><span style={{ color: urgency.color, fontWeight: 600 }}>AI:</span> {inc.urgency_reason}</p>}
 
-                      {/* Status actions */}
-                      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                        {inc.status !== 'DISPATCHED' && (
-                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'DISPATCHED'); }} style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        {inc.status !== 'DISPATCHED' && inc.status !== 'RESOLVED' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'DISPATCHED'); }}
+                            style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
                             Dispatch
                           </button>
                         )}
                         {inc.status !== 'RESOLVED' && (
-                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'RESOLVED'); }} style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
+                          <button onClick={(e) => { e.stopPropagation(); setShowResolve(true); }}
+                            style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
                             Resolve
+                          </button>
+                        )}
+                        {inc.status !== 'RESOLVED' && (
+                          <button onClick={(e) => { e.stopPropagation(); setShowAssign(inc.id); }}
+                            style={{ padding: '8px', borderRadius: '6px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <UserPlus size={12} /> Assign
                           </button>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); loadHistory(inc.id); }}
                           style={{ padding: '8px', borderRadius: '6px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <History size={12} /> History
                         </button>
+                        <button onClick={(e) => { e.stopPropagation(); loadRelated(inc); }}
+                          style={{ padding: '8px', borderRadius: '6px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Link2 size={12} /> Related
+                        </button>
                       </div>
+
+                      {/* Assignment dropdown */}
+                      {showAssign === inc.id && (
+                        <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '8px', marginBottom: '8px' }}>
+                          <p style={{ fontSize: '10px', color: '#71717a', marginBottom: '6px' }}>Assign responder:</p>
+                          {responders.map(r => (
+                            <button key={r.id} onClick={(e) => { e.stopPropagation(); handleAssign(inc.id, r.id); }}
+                              style={{ width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: r.status === 'available' ? 'rgba(34,197,94,0.05)' : 'transparent', color: r.status === 'available' ? '#4ade80' : '#52525b', fontSize: '11px', marginBottom: '2px', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{r.name}</span>
+                              <span style={{ fontSize: '9px', color: r.status === 'available' ? '#22c55e' : '#ef4444' }}>{r.status}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Resolve with notes */}
+                      {showResolve && (
+                        <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '10px', marginBottom: '8px' }}>
+                          <p style={{ fontSize: '10px', color: '#71717a', marginBottom: '6px' }}>Resolution notes:</p>
+                          <textarea value={resolveNotes} onChange={e => setResolveNotes(e.target.value)} placeholder="What was done, outcome..."
+                            style={{ width: '100%', background: '#09090b', border: '1px solid #27272a', borderRadius: '6px', padding: '8px', fontSize: '12px', color: '#fafafa', outline: 'none', resize: 'vertical', minHeight: '60px', marginBottom: '6px' }} />
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={(e) => { e.stopPropagation(); handleResolve(); }}
+                              style={{ flex: 1, padding: '6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#000' }}>Confirm Resolve</button>
+                            <button onClick={(e) => { e.stopPropagation(); setShowResolve(false); setResolveNotes(''); }}
+                              style={{ padding: '6px 12px', borderRadius: '4px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'transparent', color: '#71717a' }}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* First-aid info */}
                       {inc.condition && (
                         <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', padding: '10px' }}>
                           <p style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', marginBottom: '4px' }}>FIRST-AID PROTOCOL</p>
-                          <p style={{ fontSize: '11px', color: '#a1a1aa' }}>
-                            {getFirstAid(inc.condition + ' ' + inc.type).title}
-                          </p>
+                          <p style={{ fontSize: '11px', color: '#a1a1aa' }}>{getFirstAid(inc.condition + ' ' + inc.type).title}</p>
                         </div>
                       )}
                     </div>
@@ -343,7 +426,7 @@ export default function DispatcherDashboard() {
           </div>
         </div>
 
-        {/* MAP + DETAIL PANEL */}
+        {/* MAP + PANELS */}
         <div style={{ flex: 1, height: '100%', width: '100%', position: 'relative', background: '#09090b', zIndex: 10, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, position: 'relative' }}>
             <LiveMap incidents={incidents} activeIncident={activeIncident} onIncidentClick={setActiveIncident} />
@@ -356,22 +439,44 @@ export default function DispatcherDashboard() {
                 <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#fafafa' }}>Status History</h3>
                 <button onClick={() => setShowHistory(false)} style={{ color: '#71717a', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Close</button>
               </div>
-              {historyLoading ? (
-                <p style={{ color: '#71717a', fontSize: '12px' }}>Loading...</p>
-              ) : history.length === 0 ? (
+              {historyLoading ? <p style={{ color: '#71717a', fontSize: '12px' }}>Loading...</p> : history.length === 0 ? (
                 <p style={{ color: '#52525b', fontSize: '12px' }}>No status changes recorded yet.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {history.map((entry) => (
+                  {history.map(entry => (
                     <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
                       <span style={{ color: '#52525b', fontFamily: 'monospace', minWidth: '120px' }}>{new Date(entry.created_at).toLocaleString()}</span>
-                      {entry.old_status && (
-                        <span style={{ padding: '2px 6px', borderRadius: '4px', background: 'rgba(39,39,42,0.6)', color: '#a1a1aa' }}>{entry.old_status}</span>
-                      )}
+                      {entry.old_status && <span style={{ padding: '2px 6px', borderRadius: '4px', background: 'rgba(39,39,42,0.6)', color: '#a1a1aa' }}>{entry.old_status}</span>}
                       <span style={{ color: '#71717a' }}>→</span>
                       <span style={{ padding: '2px 6px', borderRadius: '4px', background: STATUS_STYLE[entry.new_status as IncidentStatus]?.bg || '#27272a', color: STATUS_STYLE[entry.new_status as IncidentStatus]?.color || '#a1a1aa' }}>{entry.new_status}</span>
                       <span style={{ color: '#52525b' }}>by {entry.changed_by || 'system'}</span>
                       {entry.notes && <span style={{ color: '#71717a', fontStyle: 'italic' }}>({entry.notes})</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Related Incidents Panel */}
+          {showRelated && (
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(24,24,27,0.95)', backdropFilter: 'blur(12px)', borderTop: '1px solid #27272a', maxHeight: '200px', overflowY: 'auto', padding: '16px', zIndex: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#fafafa' }}>Related Incidents (same type, within 500m, 10min)</h3>
+                <button onClick={() => setShowRelated(false)} style={{ color: '#71717a', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Close</button>
+              </div>
+              {relatedIncidents.length === 0 ? (
+                <p style={{ color: '#52525b', fontSize: '12px' }}>No related incidents found.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {relatedIncidents.map(inc => (
+                    <div key={inc.id} onClick={() => setActiveIncident(inc)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '6px', background: 'rgba(39,39,42,0.3)', cursor: 'pointer' }}>
+                      <span>{INCIDENT_ICONS[inc.type]}</span>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '12px', fontWeight: 600, color: '#fafafa' }}>{inc.type} — {inc.status}</p>
+                        <p style={{ fontSize: '11px', color: '#71717a' }}>{inc.location}</p>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#52525b' }}>{timeAgo(inc.timestamp)}</span>
                     </div>
                   ))}
                 </div>

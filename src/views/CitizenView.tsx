@@ -7,6 +7,7 @@ import { Zap, Mic, Bot, ArrowRight, RotateCcw, ChevronRight, X, Send, CheckCircl
 import { useIncidents } from '../hooks/useIncidents';
 import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
+import { useAuth } from '../hooks/useAuth';
 import type { IncidentType, UrgencyLevel } from '../types/incident';
 
 interface Submission {
@@ -29,6 +30,7 @@ function toIncidentType(value: string): IncidentType {
 
 export default function CitizenView() {
   const { createIncident } = useIncidents();
+  const { user } = useAuth();
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -158,13 +160,14 @@ export default function CitizenView() {
       type: 'MEDICAL',
       location: 'Current Location (GPS)',
       description: 'Emergency beacon activated',
-      reporter: 'System (SOS)',
+      reporter: user?.name || user?.email || 'System (SOS)',
+      reporter_email: user?.email,
       coordinates: coords,
       urgency: 'critical',
       urgency_reason: 'One-tap SOS activated',
     });
     toast.success('Emergency beacon activated');
-  }, [acquireGPS, createIncident]);
+  }, [acquireGPS, createIncident, user]);
 
   // Submit transcript for processing
   const processText = useCallback(async (text: string) => {
@@ -186,7 +189,7 @@ export default function CitizenView() {
         condition: extracted.condition,
         location_description: extracted.location_description,
         people_affected: extracted.people_affected,
-        urgency: extracted.urgency,
+        urgency: extracted.urgency as UrgencyLevel,
         urgency_reason: extracted.urgency_reason,
         hazards: extracted.hazards || [],
         gps: coords,
@@ -198,14 +201,19 @@ export default function CitizenView() {
         type: toIncidentType(extracted.incident_type),
         location: extracted.location_description || 'Iligan City, Philippines',
         description: extracted.condition || text,
-        reporter: 'Citizen',
+        reporter: user?.name || user?.email || 'Citizen',
+        reporter_email: user?.email,
         coordinates: coords,
-        urgency: extracted.urgency,
+        urgency: extracted.urgency as UrgencyLevel,
         urgency_reason: extracted.urgency_reason,
         people_affected: extracted.people_affected,
         condition: extracted.condition,
         hazards: extracted.hazards,
         transcript: text,
+        confidence: extracted.confidence,
+        consciousness: extracted.consciousness,
+        breathing: extracted.breathing,
+        bleeding: extracted.bleeding,
       });
 
       setReportSubmitted(true);

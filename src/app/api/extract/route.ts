@@ -19,11 +19,22 @@ Return ONLY a valid JSON object with these exact fields:
   "people_affected": number,
   "hazards": ["list", "of", "hazards"],
   "urgency": "low" | "medium" | "high" | "critical",
-  "urgency_reason": "brief explanation"
+  "urgency_reason": "brief explanation",
+  "confidence": number between 0.0 and 1.0,
+  "consciousness": true or false (is the person conscious?),
+  "breathing": true or false (is the person breathing normally?),
+  "bleeding": true or false (is there active bleeding?)
 }
 
-Rules:
-- unconscious, severe bleeding, not breathing, or trapped => urgency "critical"
+Confidence rules:
+- 0.9-1.0: Very clear transcript with specific symptoms, location, and details
+- 0.7-0.9: Clear transcript with most details present
+- 0.5-0.7: Somewhat vague but some details extracted
+- 0.3-0.5: Very vague or incomplete information
+- Below 0.3: Minimal information, mostly guesswork
+
+Urgency rules:
+- unconscious, severe bleeding, not breathing, or trapped => "critical"
 - injured but conscious and stable => "high"
 - minor injury, no immediate danger => "medium"
 - precautionary, no injury => "low"
@@ -59,6 +70,10 @@ async function tryGemini(transcript: string): Promise<ExtractedInfo | null> {
     const type: IncidentType = VALID_TYPES.includes(parsed.incident_type) ? parsed.incident_type : 'MEDICAL';
     const urgency = VALID_URGENCIES.includes(parsed.urgency) ? parsed.urgency : 'medium';
 
+    const confidence = typeof parsed.confidence === 'number'
+      ? Math.min(Math.max(0, parsed.confidence), 1)
+      : 0.7;
+
     return {
       incident_type: type,
       condition: typeof parsed.condition === 'string' ? parsed.condition : 'unknown condition',
@@ -67,6 +82,10 @@ async function tryGemini(transcript: string): Promise<ExtractedInfo | null> {
       hazards: Array.isArray(parsed.hazards) ? parsed.hazards.filter((h: unknown): h is string => typeof h === 'string').slice(0, 20) : [],
       urgency,
       urgency_reason: typeof parsed.urgency_reason === 'string' ? parsed.urgency_reason : 'Unable to determine urgency',
+      confidence,
+      consciousness: typeof parsed.consciousness === 'boolean' ? parsed.consciousness : true,
+      breathing: typeof parsed.breathing === 'boolean' ? parsed.breathing : true,
+      bleeding: typeof parsed.bleeding === 'boolean' ? parsed.bleeding : false,
     };
   } catch (error) {
     console.warn('[EXTRACT] Gemini failed, using fallback:', error);

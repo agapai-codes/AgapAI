@@ -12,6 +12,10 @@ export interface ExtractedInfo {
   hazards: string[];
   urgency: 'critical' | 'high' | 'medium' | 'low';
   urgency_reason: string;
+  confidence: number;
+  consciousness: boolean;
+  breathing: boolean;
+  bleeding: boolean;
 }
 
 function detectType(text: string): IncidentType {
@@ -37,6 +41,39 @@ function detectCondition(text: string): string {
   if (/(head injury|head wound|hit head|skull)/.test(text)) parts.push('head injury');
   if (/(shot|stab|wound)/.test(text)) parts.push('trauma wound');
   return parts.length > 0 ? parts.join(', ') : 'unknown condition';
+}
+
+function detectConsciousness(text: string): boolean {
+  return /(unconscious|unresponsive|passed out|fainted|not responsive)/i.test(text) ? false : true;
+}
+
+function detectBreathing(text: string): boolean {
+  return /(not breathing|can'?t breathe|difficulty breathing|short of breath|gasping|stopped breathing)/i.test(text) ? false : true;
+}
+
+function detectBleeding(text: string): boolean {
+  return /(bleed|blood|hemorrhag)/i.test(text);
+}
+
+function calculateConfidence(transcript: string, condition: string, location: string): number {
+  let score = 0.3; // base
+
+  // Transcript length — longer = more info
+  if (transcript.length > 50) score += 0.1;
+  if (transcript.length > 150) score += 0.1;
+
+  // Specific keywords detected
+  const keywords = ['unconscious', 'bleeding', 'breathing', 'fire', 'accident', 'trapped', 'pain', 'burn', 'fracture'];
+  const matches = keywords.filter(k => transcript.toLowerCase().includes(k));
+  score += Math.min(matches.length * 0.05, 0.2);
+
+  // Location specificity
+  if (location && location !== 'location not specified') score += 0.15;
+
+  // Condition identified (not "unknown")
+  if (condition && condition !== 'unknown condition') score += 0.1;
+
+  return Math.min(Math.round(score * 100) / 100, 0.95);
 }
 
 function detectLocation(text: string): string {
@@ -74,6 +111,9 @@ export function extractFallback(transcript: string): ExtractedInfo {
   const hazards = detectHazards(text);
   const people_affected = detectPeople(text);
   const location_description = detectLocation(transcript);
+  const consciousness = detectConsciousness(text);
+  const breathing = detectBreathing(text);
+  const bleeding = detectBleeding(text);
 
   const critical = /(unconscious|not breathing|severe bleeding|bleeding heavily|trapped|cardiac|heart attack|chest pain)/.test(text);
   const high = /(bleed|burn|fracture|broken|difficulty breathing|injur|shot|stab)/.test(text);
@@ -88,5 +128,7 @@ export function extractFallback(transcript: string): ExtractedInfo {
     urgency_reason = 'Injury requiring prompt attention; victim appears conscious.';
   }
 
-  return { incident_type, condition, location_description, people_affected, hazards, urgency, urgency_reason };
+  const confidence = calculateConfidence(transcript, condition, location_description);
+
+  return { incident_type, condition, location_description, people_affected, hazards, urgency, urgency_reason, confidence, consciousness, breathing, bleeding };
 }

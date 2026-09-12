@@ -20,6 +20,11 @@ interface CreateInput {
   condition?: string;
   hazards?: string[];
   transcript?: string;
+  reporter_email?: string;
+  confidence?: number;
+  consciousness?: boolean;
+  breathing?: boolean;
+  bleeding?: boolean;
 }
 
 interface ApiListResponse {
@@ -93,6 +98,11 @@ export function useIncidents() {
       people_affected: input.people_affected,
       condition: input.condition,
       hazards: input.hazards,
+      reporter_email: input.reporter_email,
+      confidence: input.confidence,
+      consciousness: input.consciousness,
+      breathing: input.breathing,
+      bleeding: input.bleeding,
     };
     setIncidents((prev) => [optimistic, ...prev]);
 
@@ -190,6 +200,67 @@ export function useIncidents() {
     }
   }, []);
 
+  const assignResponder = useCallback(async (incidentId: string, responderId: string): Promise<Incident | null> => {
+    try {
+      const res = await fetch(`/api/incidents/${incidentId}/assign`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responder_id: responderId }),
+      });
+      const payload: ApiItemResponse = await res.json();
+      if (!res.ok || !payload.success || !payload.data) {
+        throw new Error(payload.error || 'Failed to assign');
+      }
+      setIncidents((prev) => prev.map((i) => (i.id === incidentId ? payload.data! : i)));
+      return payload.data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign responder');
+      return null;
+    }
+  }, []);
+
+  const resolveIncident = useCallback(async (id: string, resolutionNotes: string): Promise<Incident | null> => {
+    try {
+      const res = await fetch(`/api/incidents/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'RESOLVED', resolution_notes: resolutionNotes }),
+      });
+      const payload: ApiItemResponse = await res.json();
+      if (!res.ok || !payload.success || !payload.data) {
+        throw new Error(payload.error || 'Failed to resolve');
+      }
+      setIncidents((prev) => prev.map((i) => (i.id === id ? payload.data! : i)));
+      return payload.data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resolve incident');
+      return null;
+    }
+  }, []);
+
+  const getRelated = useCallback(async (id: string): Promise<Incident[] | null> => {
+    if (id.startsWith('local-') || id.startsWith('seed-')) return [];
+    try {
+      const res = await fetch(`/api/incidents/${id}/related`);
+      const payload = await res.json();
+      if (!res.ok || !payload.success) return null;
+      return payload.data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const getResponders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/responders');
+      const payload = await res.json();
+      if (!res.ok || !payload.success) return [];
+      return payload.data;
+    } catch {
+      return [];
+    }
+  }, []);
+
   return {
     incidents,
     loading,
@@ -201,6 +272,10 @@ export function useIncidents() {
     updateStatus,
     updateUrgency,
     getHistory,
+    assignResponder,
+    resolveIncident,
+    getRelated,
+    getResponders,
   };
 }
 
