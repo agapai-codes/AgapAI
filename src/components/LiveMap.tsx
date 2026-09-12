@@ -49,6 +49,10 @@ const STATUS_ICONS: Record<string, string> = {
   RESOLVED: '✅',
 };
 
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
+}
+
 export default function LiveMap({ incidents, activeIncident, onIncidentClick }: { incidents: Incident[]; activeIncident: Incident | null; onIncidentClick: (incident: Incident) => void }) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -106,13 +110,13 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
 
         const popup = new maplibregl.Popup({ offset: 15, closeButton: false, maxWidth: '280px' }).setHTML(`
           <div style="padding: 12px; font-family: system-ui, sans-serif; background: rgba(24,24,27,0.95); backdrop-filter: blur(12px); border: 1px solid rgba(39,39,42,0.4); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-              <span style="font-size: 18px;">${STATUS_ICONS[incident.status]}</span>
-              <div>
-                <div style="font-weight: 600; font-size: 14px; color: #fafafa;">${incident.type}</div>
-                <div style="font-size: 12px; color: #a1a1aa;">${incident.location}</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <span style="font-size: 18px;">${STATUS_ICONS[incident.status]}</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 14px; color: #fafafa;">${escapeHtml(incident.type)}</div>
+                  <div style="font-size: 12px; color: #a1a1aa;">${escapeHtml(incident.location)}</div>
+                </div>
               </div>
-            </div>
             <div style="display: flex; gap: 6px; margin-bottom: 10px;">
               <span style="padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: ${INCIDENT_COLORS[incident.type]}22; color: ${INCIDENT_COLORS[incident.type]}; border: 1px solid ${INCIDENT_COLORS[incident.type]}44;">${incident.type}</span>
               <span style="padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46;">${incident.status}</span>
