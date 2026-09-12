@@ -118,8 +118,8 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
                 </div>
               </div>
             <div style="display: flex; gap: 6px; margin-bottom: 10px;">
-              <span style="padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: ${INCIDENT_COLORS[incident.type]}22; color: ${INCIDENT_COLORS[incident.type]}; border: 1px solid ${INCIDENT_COLORS[incident.type]}44;">${incident.type}</span>
-              <span style="padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46;">${incident.status}</span>
+              <span style="padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: ${INCIDENT_COLORS[incident.type] || '#6B7280'}22; color: ${INCIDENT_COLORS[incident.type] || '#6B7280'}; border: 1px solid ${INCIDENT_COLORS[incident.type] || '#6B7280'}44;">${escapeHtml(incident.type)}</span>
+              <span style="padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46;">${escapeHtml(incident.status)}</span>
             </div>
             <div style="font-size: 12px; color: #71717a;">${new Date(incident.timestamp).toLocaleTimeString()}</div>
           </div>
