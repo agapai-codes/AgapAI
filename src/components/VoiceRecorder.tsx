@@ -1,19 +1,24 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { isDemo, isLive } from '../lib/config';
 
 interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
   onInterimTranscript: (text: string) => void;
   isRecording: boolean;
   onStop: () => void;
+  language?: string;
+  onAudioChunk?: (chunk: Blob) => void;
 }
 
 export default function VoiceRecorder({
   onTranscript,
   onInterimTranscript,
   isRecording,
-  onStop
+  onStop,
+  language = 'en-US',
+  onAudioChunk,
 }: VoiceRecorderProps) {
   const recognitionRef = useRef<any>(null);
   const onTranscriptRef = useRef(onTranscript);
@@ -25,11 +30,92 @@ export default function VoiceRecorder({
   const [duration, setDuration] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
 
-  // Keep refs up to date
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
   useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
   useEffect(() => { onInterimTranscriptRef.current = onInterimTranscript; }, [onInterimTranscript]);
   useEffect(() => { onStopRef.current = onStop; }, [onStop]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+
+  const startAudioCapture = useCallback(async () => {
+    if (!isLive || mediaRecorderRef.current) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && onAudioChunk) {
+          onAudioChunk(event.data);
+        }
+      };
+
+      mediaRecorder.start(1000);
+    } catch (err) {
+      console.error('Failed to start audio capture:', err);
+    }
+  }, [isLive, onAudioChunk]);
+
+  const stopAudioCapture = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    analyserRef.current = null;
+    mediaRecorderRef.current = null;
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  }, []);
+
+  const updateVUMeter = useCallback(() => {
+    if (!analyserRef.current) {
+      setAudioLevel(0);
+      return;
+    }
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
+    }
+    const average = sum / dataArray.length;
+    const normalizedLevel = Math.min(100, (average / 255) * 100);
+    setAudioLevel(normalizedLevel);
+
+    animationFrameRef.current = requestAnimationFrame(updateVUMeter);
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -41,7 +127,7 @@ export default function VoiceRecorder({
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = language;
     recognition.maxAlternatives = 1;
 
     let finalTranscript = '';
@@ -63,7 +149,9 @@ export default function VoiceRecorder({
         onInterimTranscriptRef.current(finalTranscript + interimTranscript);
       }
 
-      setAudioLevel(Math.random() * 40 + 60);
+      if (!isLive) {
+        setAudioLevel(Math.random() * 40 + 60);
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -89,7 +177,7 @@ export default function VoiceRecorder({
     recognitionRef.current = recognition;
 
     return () => { recognition.abort(); };
-  }, []);
+  }, [language, isLive]);
 
   useEffect(() => {
     if (!recognitionRef.current) return;
@@ -98,18 +186,35 @@ export default function VoiceRecorder({
         recognitionRef.current.start();
         setError(null);
         setDuration(0);
+        if (isLive) {
+          startAudioCapture();
+        }
+        if (isLive && analyserRef.current) {
+          animationFrameRef.current = requestAnimationFrame(updateVUMeter);
+        }
       } catch (e) {}
     } else {
       recognitionRef.current.stop();
       setAudioLevel(0);
+      stopAudioCapture();
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
     }
-  }, [isRecording]);
+  }, [isRecording, isLive, startAudioCapture, stopAudioCapture, updateVUMeter]);
 
   useEffect(() => {
     if (!isRecording) return;
     const timer = setInterval(() => setDuration(d => d + 1), 1000);
     return () => clearInterval(timer);
   }, [isRecording]);
+
+  useEffect(() => {
+    if (isRecording && isLive && analyserRef.current && !animationFrameRef.current) {
+      animationFrameRef.current = requestAnimationFrame(updateVUMeter);
+    }
+  }, [isRecording, isLive, updateVUMeter]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -168,8 +273,17 @@ export default function VoiceRecorder({
             </div>
             <div>
               <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">LANGUAGE</p>
-              <p className="text-zinc-400 text-sm font-mono">en-US</p>
+              <p className="text-zinc-400 text-sm font-mono">{language}</p>
             </div>
+          </div>
+          <div className="mt-3 flex justify-center">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider ${
+              isDemo
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+            }`}>
+              {isDemo ? 'DEMO MODE - Browser STT' : 'LIVE MODE - Server STT'}
+            </span>
           </div>
         </div>
       )}

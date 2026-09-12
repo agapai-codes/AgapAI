@@ -9,6 +9,7 @@ import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
 import { useAuth } from '../hooks/useAuth';
 import VoiceRecorder from '../components/VoiceRecorder';
+import { isDemo, isLive, APP_MODE } from '../lib/config';
 import type { IncidentType, UrgencyLevel } from '../types/incident';
 
 interface Submission {
@@ -21,6 +22,9 @@ interface Submission {
   hazards: string[];
   gps?: { lng: number; lat: number };
 }
+
+type ExtractionStepKey = 'capturing-location' | 'analyzing-transcript' | 'creating-report';
+type ExtractionStep = ExtractionStepKey | null;
 
 function toIncidentType(value: string): IncidentType {
   const upper = value.toUpperCase();
@@ -35,6 +39,7 @@ export default function CitizenView() {
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [extractionStep, setExtractionStep] = useState<ExtractionStep>(null);
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [firstAidProtocol, setFirstAidProtocol] = useState<FirstAidProtocol | null>(null);
@@ -55,7 +60,6 @@ export default function CitizenView() {
     return () => clearInterval(timer);
   }, []);
 
-  // GPS acquisition
   const acquireGPS = useCallback((): Promise<{ lng: number; lat: number }> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -81,7 +85,6 @@ export default function CitizenView() {
     });
   }, []);
 
-  // SOS handler — captures GPS + sends beacon
   const handleSOS = useCallback(async () => {
     try {
       const coords = await acquireGPS();
@@ -106,15 +109,16 @@ export default function CitizenView() {
     }
   }, [acquireGPS, createIncident, user]);
 
-  // Submit transcript for processing
   const processText = useCallback(async (text: string) => {
     if (!text.trim()) return;
     setIsProcessing(true);
     setShowVoiceModal(false);
     setIsRecording(false);
 
+    setExtractionStep('capturing-location');
     const coords = gpsCoords || await acquireGPS();
 
+    setExtractionStep('analyzing-transcript');
     try {
       const extracted = await extractEmergencyInfo(text);
       const sub: Submission = {
@@ -130,6 +134,7 @@ export default function CitizenView() {
       setSubmission(sub);
       setFirstAidProtocol(getFirstAid(sub.condition + ' ' + sub.incident_type));
 
+      setExtractionStep('creating-report');
       await createIncident({
         type: toIncidentType(extracted.incident_type),
         location: extracted.location_description || 'Iligan City, Philippines',
@@ -156,6 +161,7 @@ export default function CitizenView() {
       toast.error('Failed to process report. Please try again.');
     } finally {
       setIsProcessing(false);
+      setExtractionStep(null);
     }
   }, [gpsCoords, acquireGPS, createIncident]);
 
@@ -196,12 +202,19 @@ export default function CitizenView() {
     setSubmission(null);
     setFirstAidProtocol(null);
     setIsRecording(false);
+    setExtractionStep(null);
     setGpsCoords(null);
     setGpsStatus('idle');
   };
 
   const urgencyColor = (u: string) =>
     u === 'critical' ? '#ef4444' : u === 'high' ? '#f97316' : u === 'medium' ? '#eab308' : '#22c55e';
+
+  const extractionStepLabel: Record<ExtractionStepKey, string> = {
+    'capturing-location': 'Capturing location...',
+    'analyzing-transcript': 'Analyzing transcript with AI...',
+    'creating-report': 'Creating incident report...',
+  };
 
   // ─── REPORT SUBMITTED VIEW ────────────────────────────────────────
   if (reportSubmitted && submission) {
@@ -211,6 +224,9 @@ export default function CitizenView() {
           <div className="flex items-center gap-3">
             <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
             <span className="font-bold text-lg text-[#fafafa]">Agap<span className="text-[#ef4444]">AI</span></span>
+            <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${isDemo ? 'bg-zinc-800/60 text-[#a1a1aa] border-zinc-700/40' : 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/20'}`}>
+              {APP_MODE.toUpperCase()}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="relative inline-flex h-2 w-2">
@@ -230,7 +246,6 @@ export default function CitizenView() {
             <p className="text-[#a1a1aa]">Emergency services have been notified</p>
           </div>
 
-          {/* Structured Report Card */}
           <div className="bg-[#18181b]/60 backdrop-blur-xl border border-zinc-800/40 shadow-2xl rounded-xl p-6 mb-6">
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -260,7 +275,6 @@ export default function CitizenView() {
             <p className="mt-3 text-xs text-[#71717a] italic">{submission.urgency_reason}</p>
           </div>
 
-          {/* First-Aid Guidance */}
           {firstAidProtocol && (
             <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-xl p-6 mb-6">
               <div className="flex items-center gap-2.5 mb-4">
@@ -307,6 +321,9 @@ export default function CitizenView() {
         <div className="flex items-center gap-3">
           <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
           <span className="font-bold text-lg text-[#fafafa]">Agap<span className="text-[#ef4444]">AI</span></span>
+          <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${isDemo ? 'bg-zinc-800/60 text-[#a1a1aa] border-zinc-700/40' : 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/20'}`}>
+            {APP_MODE.toUpperCase()}
+          </span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -344,7 +361,6 @@ export default function CitizenView() {
           {isRecording ? 'Listening... Speak now' : 'Tap SOS for instant beacon, or use Voice Report below'}
         </p>
 
-        {/* GPS Status */}
         {gpsStatus !== 'idle' && (
           <p className={`text-[11px] mt-1 flex items-center gap-1 ${gpsStatus === 'ready' ? 'text-[#22c55e]' : gpsStatus === 'loading' ? 'text-[#eab308]' : 'text-[#f87171]'}`}>
             <MapPin size={12} />
@@ -360,11 +376,14 @@ export default function CitizenView() {
             >
               <ChevronRight size={14} /> Launch Simulator
             </button>
-            <p className="text-[11px] text-[#3f3f46] mt-2 font-light">Pre-filled emergency report for demonstration</p>
+            <p className="text-[11px] text-[#3f3f46] mt-2 font-light">
+              {isDemo
+                ? 'Demo mode uses browser speech recognition and keyword-based extraction'
+                : 'Pre-filled emergency report for demonstration'}
+            </p>
           </div>
         )}
 
-        {/* Transcript display */}
         {transcript && (
           <div className="w-full max-w-md mt-6">
             <div className="bg-[#18181b]/60 backdrop-blur-xl border border-zinc-800/40 shadow-2xl rounded-xl p-4">
@@ -374,6 +393,31 @@ export default function CitizenView() {
                 <p className="text-[#52525b] text-[13px] leading-relaxed mt-1 italic">{interimTranscript.replace(transcript, '')}</p>
               )}
             </div>
+
+            {/* Preview card — extracted fields before submission */}
+            {!isProcessing && (
+              <div className="bg-[#18181b]/60 backdrop-blur-xl border border-[#3b82f6]/20 shadow-2xl rounded-xl p-4 mt-3">
+                <p className="text-[10px] font-bold tracking-widest text-[#3b82f6] uppercase mb-2">Preview — What the AI will extract</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
+                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Type</p>
+                    <p className="text-xs text-[#fafafa] capitalize">{isDemo ? 'Keyword-detected' : 'Gemini-classified'}</p>
+                  </div>
+                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
+                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Urgency</p>
+                    <p className="text-xs text-[#fafafa] capitalize">{isDemo ? 'Rule-based' : 'AI-assessed'}</p>
+                  </div>
+                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
+                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Location</p>
+                    <p className="text-xs text-[#fafafa]">{gpsCoords ? `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lng.toFixed(4)}` : 'Acquiring...'}</p>
+                  </div>
+                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
+                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Confidence</p>
+                    <p className="text-xs text-[#fafafa]">{isDemo ? 'Keyword match' : 'AI confidence score'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -384,9 +428,28 @@ export default function CitizenView() {
         )}
 
         {isProcessing && (
-          <div className="mt-6 flex items-center gap-3 text-[#a1a1aa]">
+          <div className="mt-6 flex flex-col items-center gap-3 text-[#a1a1aa]">
             <div className="w-5 h-5 border-2 border-[#52525b] border-t-[#fafafa] rounded-full animate-spin" />
-            <span className="text-sm">Processing report with AI...</span>
+            {extractionStep && (
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-sm font-medium text-[#fafafa]">{extractionStepLabel[extractionStep]}</span>
+                <div className="flex gap-1.5 mt-1">
+                  {(['capturing-location', 'analyzing-transcript', 'creating-report'] as ExtractionStepKey[]).map((step) => {
+                    const steps: ExtractionStepKey[] = ['capturing-location', 'analyzing-transcript', 'creating-report'];
+                    const currentIdx = steps.indexOf(extractionStep);
+                    const stepIdx = steps.indexOf(step);
+                    return (
+                      <div
+                        key={step}
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          stepIdx <= currentIdx ? 'bg-[#fafafa]' : 'bg-[#3f3f46]'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -423,7 +486,6 @@ export default function CitizenView() {
               <button onClick={handleVoiceModalClose} className="text-[#71717a] cursor-pointer bg-transparent border-none" aria-label="Close"><X size={20} /></button>
             </div>
 
-            {/* VoiceRecorder component handles speech recognition */}
             <VoiceRecorder
               isRecording={isRecording}
               onTranscript={setTranscript}
@@ -435,7 +497,17 @@ export default function CitizenView() {
               {isRecording ? 'Listening... Describe your emergency clearly' : 'Tap Start to begin recording, or type below'}
             </p>
 
-            {/* Manual textarea fallback */}
+            {/* Real-time transcript preview inside modal */}
+            {transcript && (
+              <div className="bg-[#09090b] border border-zinc-800/60 rounded-lg p-3 mb-4">
+                <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-1">Live Transcript</p>
+                <p className="text-[#d4d4d8] text-[13px] leading-relaxed">{transcript}</p>
+                {interimTranscript && (
+                  <p className="text-[#52525b] text-xs italic mt-1">{interimTranscript.replace(transcript, '')}</p>
+                )}
+              </div>
+            )}
+
             <textarea
               value={transcript}
               onChange={e => setTranscript(e.target.value)}

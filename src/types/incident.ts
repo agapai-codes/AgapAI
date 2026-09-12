@@ -26,6 +26,9 @@ export interface Incident {
   consciousness?: boolean;
   breathing?: boolean;
   bleeding?: boolean;
+  injuries?: string[];
+  caller_name?: string;
+  caller_phone?: string;
   assigned_responder_id?: string;
   assigned_responder_name?: string;
   resolution_notes?: string;
