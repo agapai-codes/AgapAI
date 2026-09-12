@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Toaster, toast } from 'sonner';
 import SOSButton from '@/components/SOSButton';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -26,11 +26,14 @@ export default function Home() {
   const [processingProgress, setProcessingProgress] = useState(0);
   const [report, setReport] = useState<EmergencyReport | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState('');
   const [systemStatus, setSystemStatus] = useState<'online' | 'processing' | 'offline'>('online');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    setMounted(true);
+    setCurrentTime(new Date().toLocaleTimeString());
+    const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -72,7 +75,6 @@ export default function Home() {
     setSystemStatus('processing');
     setTranscript(textToProcess);
 
-    // Simulate progress
     const progressInterval = setInterval(() => {
       setProcessingProgress(prev => {
         if (prev >= 90) {
@@ -101,14 +103,13 @@ export default function Home() {
       setReport(newReport);
       setSystemStatus('online');
 
-    // Store report
-    try {
-      const existing = JSON.parse(localStorage.getItem('agap-reports') || '[]');
-      existing.unshift(newReport);
-      localStorage.setItem('agap-reports', JSON.stringify(existing));
-    } catch (e) {
-      console.warn('Failed to save report to localStorage:', e);
-    }
+      try {
+        const existing = JSON.parse(localStorage.getItem('agap-reports') || '[]');
+        existing.unshift(newReport);
+        localStorage.setItem('agap-reports', JSON.stringify(existing));
+      } catch (e) {
+        console.warn('Failed to save to localStorage:', e);
+      }
 
       toast.success('REPORT PROCESSED', {
         description: `${newReport.incident_type.toUpperCase()} | ${newReport.urgency.toUpperCase()} PRIORITY`,
@@ -136,17 +137,15 @@ export default function Home() {
     setSystemStatus('online');
   };
 
-  // Report success screen
   if (report) {
     return (
       <main className="min-h-screen bg-[#080C14]">
         <Toaster position="top-center" theme="dark" />
 
-        {/* Header */}
         <header className="border-b border-[#1E3A5F] bg-[#0F1520] px-4 py-3">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img src="/logo.jpg" alt="AgapAI" className="w-8 h-8" />
+              <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="object-contain" />
               <div>
                 <span className="font-bold text-lg tracking-tight">AGAP<span className="text-[#DC2626]">AI</span></span>
                 <span className="text-[#6B7280] text-xs ml-2 mono">REPORT GENERATED</span>
@@ -157,13 +156,12 @@ export default function Home() {
                 <div className="w-2 h-2 rounded-full bg-[#10B981]" />
                 <span className="text-[#10B981] text-xs mono">ONLINE</span>
               </div>
-              <span className="text-[#6B7280] text-xs mono">{currentTime.toLocaleTimeString()}</span>
+              {mounted && <span className="text-[#6B7280] text-xs mono">{currentTime}</span>}
             </div>
           </div>
         </header>
 
         <div className="max-w-4xl mx-auto p-4 md:p-8">
-          {/* Success Alert */}
           <div className="mb-6 p-4 bg-[#10B981]/10 border border-[#10B981]/30 flex items-center gap-4 animate-slide-up">
             <CheckCircle2 className="w-6 h-6 text-[#10B981] shrink-0" />
             <div>
@@ -172,10 +170,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Report Card */}
           <Card className="tactical-card mb-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
             <CardContent className="p-0">
-              {/* Report Header */}
               <div className="p-4 border-b border-[#1E3A5F] flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-[#1C2738] flex items-center justify-center border border-[#1E3A5F]">
@@ -197,7 +193,6 @@ export default function Home() {
                 <UrgencyBadge urgency={report.urgency} size="lg" />
               </div>
 
-              {/* Report Data */}
               <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-[#080C14] p-3 border border-[#1E3A5F]">
                   <p className="data-label flex items-center gap-1 mb-1">
@@ -229,7 +224,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* AI Urgency Reason */}
               <div className="p-4 border-t border-[#1E3A5F]">
                 <p className="data-label mb-2">AI URGENCY ASSESSMENT</p>
                 <p className="text-sm text-[#9CA3AF]">{report.urgency_reason}</p>
@@ -237,12 +231,10 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* First Aid */}
           <div className="mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-            <FirstAidPanel instruction={report.first_aid} incidentType={report.incident_type} />
+            <FirstAidPanel instruction={report.first_aid} />
           </div>
 
-          {/* Progress Steps */}
           <Card className="tactical-card mb-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
             <CardContent className="p-4">
               <p className="data-label mb-4">PROCESSING STATUS</p>
@@ -269,10 +261,9 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 animate-slide-up" style={{ animationDelay: '0.4s' }}>
             <a href="/dashboard" className="flex-1">
-              <Button className="w-full gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white cursor-pointer h-11">
+              <Button className="w-full gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white cursor-pointer h-11 rounded-none">
                 <Shield className="w-4 h-4" />
                 DISPATCHER DASHBOARD
                 <ArrowRight className="w-4 h-4" />
@@ -281,7 +272,7 @@ export default function Home() {
             <Button
               variant="outline"
               onClick={handleReset}
-              className="gap-2 border-[#1E3A5F] hover:bg-[#1C2738] cursor-pointer h-11"
+              className="gap-2 border-[#1E3A5F] hover:bg-[#1C2738] cursor-pointer h-11 rounded-none"
             >
               <RotateCcw className="w-4 h-4" />
               NEW REPORT
@@ -292,38 +283,29 @@ export default function Home() {
     );
   }
 
-  // Main landing page
   return (
     <main className="min-h-screen bg-[#080C14]">
       <Toaster position="top-center" theme="dark" />
 
-      {/* Header */}
       <header className="border-b border-[#1E3A5F] bg-[#0F1520] px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.jpg" alt="AgapAI" className="w-8 h-8" />
+            <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="object-contain" />
             <div>
               <span className="font-bold text-lg tracking-tight">AGAP<span className="text-[#DC2626]">AI</span></span>
               <span className="text-[#6B7280] text-xs ml-2 hidden sm:inline">EMERGENCY RESPONSE</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Tooltip>
-              <TooltipTrigger>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/30">
-                  <div className={`w-2 h-2 rounded-full ${systemStatus === 'online' ? 'bg-[#10B981]' : systemStatus === 'processing' ? 'bg-[#F59E0B] animate-pulse' : 'bg-[#DC2626]'}`} />
-                  <span className={`text-xs mono ${systemStatus === 'online' ? 'text-[#10B981]' : systemStatus === 'processing' ? 'text-[#F59E0B]' : 'text-[#DC2626]'}`}>
-                    {systemStatus.toUpperCase()}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>System Status: {systemStatus}</p>
-              </TooltipContent>
-            </Tooltip>
-            <span className="text-[#6B7280] text-xs mono hidden sm:block">{currentTime.toLocaleTimeString()}</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/30">
+              <div className={`w-2 h-2 rounded-full ${systemStatus === 'online' ? 'bg-[#10B981]' : systemStatus === 'processing' ? 'bg-[#F59E0B] animate-pulse' : 'bg-[#DC2626]'}`} />
+              <span className={`text-xs mono ${systemStatus === 'online' ? 'text-[#10B981]' : systemStatus === 'processing' ? 'text-[#F59E0B]' : 'text-[#DC2626]'}`}>
+                {systemStatus.toUpperCase()}
+              </span>
+            </div>
+            {mounted && <span className="text-[#6B7280] text-xs mono hidden sm:block">{currentTime}</span>}
             <a href="/dashboard">
-              <Button variant="ghost" size="sm" className="gap-2 text-[#9CA3AF] hover:text-[#F9FAFB] cursor-pointer">
+              <Button variant="ghost" size="sm" className="gap-2 text-[#9CA3AF] hover:text-[#F9FAFB] cursor-pointer rounded-none">
                 <Shield className="w-4 h-4" />
                 <span className="hidden sm:inline">DASHBOARD</span>
               </Button>
@@ -332,25 +314,20 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
       <div className="max-w-6xl mx-auto px-4 py-12 md:py-20">
-        {/* Title Block */}
-        <div className="text-center mb-12 animate-slide-up">
-          <img src="/logo.jpg" alt="AgapAI" className="w-24 h-24 mx-auto mb-6" />
-          <h1 className="text-5xl md:text-6xl font-bold mb-3 tracking-tight">
+        <div className="text-center mb-8 animate-slide-up">
+          <Image src="/logo.jpg" alt="AgapAI" width={64} height={64} className="mx-auto mb-4 object-contain" />
+          <h1 className="text-4xl md:text-5xl font-bold mb-2 tracking-tight">
             AGAP<span className="text-[#DC2626]">AI</span>
           </h1>
-          <p className="text-[#9CA3AF] text-lg max-w-md mx-auto mb-2">
+          <p className="text-[#9CA3AF] text-base max-w-md mx-auto">
             EMERGENCY RESPONSE COMMAND CENTER
           </p>
-          <p className="text-[#6B7280] text-sm">
-            Your voice is the emergency report
-          </p>
-          <p className="text-[#6B7280] text-xs mono mt-2">IEEE SumpAI 2026 — MSU-IIT</p>
+          <p className="text-[#6B7280] text-xs mt-1">Your voice is the emergency report</p>
+          <p className="text-[#6B7280] text-[10px] mono mt-1">IEEE SumpAI 2026 — MSU-IIT</p>
         </div>
 
-        {/* SOS Section */}
-        <div className="flex flex-col items-center mb-12 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="flex flex-col items-center mb-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
           <SOSButton onClick={handleSOS} isActive={isRecording} />
           <div className="mt-4 flex items-center gap-3 text-sm">
             <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-[#DC2626] animate-pulse' : 'bg-[#6B7280]'}`} />
@@ -360,7 +337,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Voice Recorder Status */}
         <div className="animate-slide-up" style={{ animationDelay: '0.2s' }}>
           <VoiceRecorder
             onTranscript={handleTranscript}
@@ -370,7 +346,6 @@ export default function Home() {
           />
         </div>
 
-        {/* Processing Progress */}
         {isProcessing && (
           <div className="max-w-2xl mx-auto mt-6 animate-fade-in">
             <div className="bg-[#0F1520] border border-[#1E3A5F] p-4">
@@ -383,20 +358,18 @@ export default function Home() {
           </div>
         )}
 
-        {/* Transcript */}
         <TranscriptView
           transcript={transcript}
           interimTranscript={interimTranscript}
           isProcessing={isProcessing}
         />
 
-        {/* Action Buttons */}
         {transcript && !isRecording && !isProcessing && (
           <div className="max-w-2xl mx-auto mt-6 flex gap-3 animate-slide-up">
             <Button
               size="lg"
               onClick={() => handleProcessReport()}
-              className="gap-2 cursor-pointer px-8 bg-[#DC2626] hover:bg-[#B91C1C] text-white h-12"
+              className="gap-2 cursor-pointer px-8 bg-[#DC2626] hover:bg-[#B91C1C] text-white h-12 rounded-none"
             >
               <Bot className="w-5 h-5" />
               PROCESS WITH AI
@@ -404,14 +377,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* Try Demo */}
         {!transcript && !isRecording && !isProcessing && (
           <div className="text-center mt-8 animate-slide-up" style={{ animationDelay: '0.3s' }}>
             <Button
               variant="outline"
               size="lg"
               onClick={handleTryDemo}
-              className="gap-2 cursor-pointer border-[#1E3A5F] hover:bg-[#1C2738] h-11"
+              className="gap-2 cursor-pointer border-[#1E3A5F] hover:bg-[#1C2738] h-11 rounded-none"
             >
               <Zap className="w-4 h-4" />
               RUN DEMO SCENARIO
@@ -422,7 +394,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Feature Cards */}
         {!transcript && !isRecording && !isProcessing && (
           <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-up" style={{ animationDelay: '0.4s' }}>
             {[

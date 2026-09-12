@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmergencyReport } from '@/lib/types';
 
 interface MapViewProps {
@@ -13,11 +13,14 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    let cancelled = false;
 
     const initMap = async () => {
+      if (!mapRef.current || mapInstanceRef.current || cancelled) return;
+
       const L = (await import('leaflet')).default;
 
       delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -27,28 +30,29 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
       });
 
-      // CartoDB Dark Matter tiles for 911 dispatch look
       const map = L.map(mapRef.current!, {
         center: [8.2280, 124.2452],
         zoom: 13,
         zoomControl: false,
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map);
 
-      // Add zoom control to top-right
       L.control.zoom({ position: 'topright' }).addTo(map);
 
-      mapInstanceRef.current = map;
+      if (!cancelled) {
+        mapInstanceRef.current = map;
+        setIsMapReady(true);
+      }
     };
 
     initMap();
 
     return () => {
+      cancelled = true;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -57,20 +61,21 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
   }, []);
 
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!isMapReady || !mapInstanceRef.current) return;
 
     const loadMarkers = async () => {
       const L = (await import('leaflet')).default;
       const map = mapInstanceRef.current;
+      if (!map) return;
 
       markersRef.current.forEach((marker: any) => marker.remove());
       markersRef.current = [];
 
       const urgencyColors: Record<string, string> = {
-        critical: '#EF4444',
-        high: '#F97316',
-        medium: '#EAB308',
-        low: '#22C55E',
+        critical: '#DC2626',
+        high: '#F59E0B',
+        medium: '#3B82F6',
+        low: '#10B981',
       };
 
       const statusIcons: Record<string, string> = {
@@ -83,23 +88,22 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
         if (report.latitude && report.longitude) {
           const color = urgencyColors[report.urgency] || '#6B7280';
           const isSelected = report.id === selectedReportId;
-          const size = isSelected ? 32 : 24;
+          const size = isSelected ? 28 : 20;
           const pulseClass = report.urgency === 'critical' ? 'marker-pulse' : '';
 
           const icon = L.divIcon({
             html: `
               <div class="${pulseClass}" style="
-                width: ${size}px; 
-                height: ${size}px; 
-                background: ${color}; 
-                border-radius: 50%; 
-                border: 3px solid ${isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.3)'};
-                box-shadow: 0 0 ${isSelected ? '20px' : '10px'} ${color}66;
+                width: ${size}px;
+                height: ${size}px;
+                background: ${color};
+                border-radius: 2px;
+                border: 2px solid ${isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.3)'};
+                box-shadow: 0 0 ${isSelected ? '15px' : '8px'} ${color}88;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: ${isSelected ? '14px' : '10px'};
-                transition: all 0.2s ease;
+                font-size: ${isSelected ? '12px' : '9px'};
               ">
                 ${statusIcons[report.status] || ''}
               </div>
@@ -112,44 +116,20 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
           const marker = L.marker([report.latitude, report.longitude], { icon })
             .addTo(map)
             .bindPopup(`
-              <div style="min-width: 180px; font-family: Inter, sans-serif;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                  <span style="font-size: 16px;">
-                    ${report.incident_type === 'medical' ? '🏥' :
-                     report.incident_type === 'fire' ? '🔥' :
-                     report.incident_type === 'accident' ? '🚗' :
-                     report.incident_type === 'disaster' ? '🌪️' : '📋'}
-                  </span>
-                  <div>
-                    <div style="font-weight: 600; text-transform: capitalize;">${report.incident_type.replace('_', ' ')}</div>
-                    <div style="font-size: 11px; color: #9CA3AF;">${report.location_description}</div>
-                  </div>
+              <div style="min-width: 160px; font-family: monospace; font-size: 11px;">
+                <div style="font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">
+                  ${report.incident_type.replace('_', ' ')}
                 </div>
-                <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-                  <span style="
-                    padding: 2px 8px; 
-                    border-radius: 4px; 
-                    font-size: 10px; 
-                    font-weight: 600;
-                    background: ${color}22;
-                    color: ${color};
-                    border: 1px solid ${color}44;
-                  ">
+                <div style="color: #9CA3AF; margin-bottom: 4px;">
+                  ${report.location_description}
+                </div>
+                <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                  <span style="padding: 1px 4px; background: ${color}22; color: ${color}; border: 1px solid ${color}44; font-size: 9px; font-weight: bold;">
                     ${report.urgency.toUpperCase()}
                   </span>
-                  <span style="
-                    padding: 2px 8px; 
-                    border-radius: 4px; 
-                    font-size: 10px; 
-                    background: #1F2937;
-                    color: #9CA3AF;
-                    border: 1px solid #374151;
-                  ">
-                    ${report.status}
-                  </span>
                 </div>
-                <div style="font-size: 11px; color: #6B7280;">
-                  👥 ${report.people_affected} affected • ${new Date(report.timestamp).toLocaleTimeString()}
+                <div style="color: #6B7280; font-size: 10px;">
+                  ${report.people_affected} affected
                 </div>
               </div>
             `);
@@ -166,19 +146,18 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
     };
 
     loadMarkers();
-  }, [reports, selectedReportId, onReportSelect]);
+  }, [isMapReady, reports, selectedReportId, onReportSelect]);
 
   return (
-    <div className="relative w-full h-full rounded-lg overflow-hidden border border-[#374151]">
+    <div className="relative w-full h-full border border-[#1E3A5F]">
       <div
         ref={mapRef}
         className="w-full h-full"
-        style={{ background: '#0A0E17' }}
+        style={{ background: '#080C14' }}
       />
-      {/* Map overlay info */}
-      <div className="absolute top-2 left-2 bg-[#111827]/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-[#374151] z-[1000]">
-        <p className="text-[10px] text-[#6B7280]">Iligan City, Philippines</p>
-        <p className="text-xs font-medium">{reports.length} incidents</p>
+      <div className="absolute top-2 left-2 bg-[#0F1520]/90 backdrop-blur-sm px-3 py-1.5 border border-[#1E3A5F] z-[1000]">
+        <p className="text-[10px] text-[#6B7280] mono">ILIGAN CITY, PHILIPPINES</p>
+        <p className="text-xs font-medium mono">{reports.length} INCIDENTS</p>
       </div>
     </div>
   );
