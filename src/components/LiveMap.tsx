@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Incident } from '../types/incident';
@@ -221,7 +221,7 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
         canvas.style.filter = 'brightness(0.75) contrast(1.15) saturate(0.8)';
       }
 
-      renderMarkers(map, incidentsRef.current);
+      renderMarkers(map, incidentsRef.current, null);
     });
 
     mapRef.current = map;
@@ -236,11 +236,11 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
     };
   }, []);
 
-  // ── Re-render markers on incident changes ──────────────────────────────────
+  // ── Re-render markers on incident or activeIncident changes ─────────────────
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.loaded()) return;
-    renderMarkers(mapRef.current, incidents);
-  }, [incidents]);
+    renderMarkers(mapRef.current, incidents, activeIncident?.id ?? null);
+  }, [incidents, activeIncident?.id]);
 
   // ── Fly to active incident ─────────────────────────────────────────────────
   useEffect(() => {
@@ -259,7 +259,7 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
   }, [activeIncident]);
 
   // ── Render markers ─────────────────────────────────────────────────────────
-  function renderMarkers(map: maplibregl.Map, incs: Incident[]) {
+  function renderMarkers(map: maplibregl.Map, incs: Incident[], activeId: string | null) {
     // Clear existing
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
@@ -275,7 +275,7 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
       if (cluster.incidents.length === 1) {
         const inc = cluster.incidents[0];
         const pos = positions.get(inc.id) || inc.coordinates;
-        const el = createSingleMarker(inc);
+        const el = createSingleMarker(inc, activeId);
         const popup = createSinglePopup(inc);
 
         const marker = new maplibregl.Marker({ element: el })
@@ -343,10 +343,10 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
   }
 
   // ── Single incident marker ─────────────────────────────────────────────────
-  function createSingleMarker(inc: Incident): HTMLDivElement {
+  function createSingleMarker(inc: Incident, activeId: string | null): HTMLDivElement {
     const color = INCIDENT_COLORS[inc.type] || '#71717a';
     const icon = STATUS_ICONS[inc.status] || '📋';
-    const isActive = activeIncident?.id === inc.id;
+    const isActive = activeId === inc.id;
 
     const el = document.createElement('div');
     el.style.cssText = `position: relative; cursor: pointer; width: ${isActive ? 40 : 32}px; height: ${isActive ? 40 : 32}px; transition: transform 0.2s;`;
