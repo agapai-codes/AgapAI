@@ -71,6 +71,13 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    if (!incident) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to create incident' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ success: true, data: incident }, { status: 201 });
   } catch (error) {
     console.error('[API] POST /incidents error:', error);

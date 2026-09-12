@@ -19,6 +19,7 @@ export default function VoiceRecorder({
   const onTranscriptRef = useRef(onTranscript);
   const onInterimTranscriptRef = useRef(onInterimTranscript);
   const onStopRef = useRef(onStop);
+  const isRecordingRef = useRef(isRecording);
   const [isSupported, setIsSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
@@ -28,6 +29,7 @@ export default function VoiceRecorder({
   useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
   useEffect(() => { onInterimTranscriptRef.current = onInterimTranscript; }, [onInterimTranscript]);
   useEffect(() => { onStopRef.current = onStop; }, [onStop]);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -79,7 +81,7 @@ export default function VoiceRecorder({
     };
 
     recognition.onend = () => {
-      if (isRecording) {
+      if (isRecordingRef.current) {
         try { recognition.start(); } catch (e) {}
       }
     };

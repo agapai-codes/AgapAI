@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import ResponderView from '../../views/ResponderView';
 
-function ResponderLogin({ onLogin }: { onLogin: () => void }) {
+function ResponderLogin({ onLogin, signIn }: { onLogin: () => void; signIn: (email: string, password: string) => Promise<any> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,13 +18,7 @@ function ResponderLogin({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/responder-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const payload = await res.json();
-      if (!res.ok || !payload.success) throw new Error(payload.error || 'Login failed');
+      await signIn(email, password);
       onLogin();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -60,7 +54,7 @@ function ResponderLogin({ onLogin }: { onLogin: () => void }) {
 }
 
 export default function ResponderPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const [loginDone, setLoginDone] = useState(false);
 
   if (loading) {
@@ -72,7 +66,7 @@ export default function ResponderPage() {
   }
 
   if (!user && !loginDone) {
-    return <ResponderLogin onLogin={() => setLoginDone(true)} />;
+    return <ResponderLogin onLogin={() => setLoginDone(true)} signIn={signIn} />;
   }
 
   return <ResponderView />;

@@ -121,14 +121,18 @@ export function useIncidents() {
       return saved;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create incident');
-      return optimistic;
+      setIncidents((prev) => prev.filter((i) => i.id !== optimistic.id));
+      return null;
     }
   }, []);
 
   const updateStatus = useCallback(async (id: string, status: IncidentStatus): Promise<Incident | null> => {
-    const previous = incidents;
-    const optimistic: Incident | undefined = previous.find((i) => i.id === id);
-    setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+    let previous: Incident[] = [];
+    setIncidents((prev) => {
+      previous = prev;
+      return prev.map((i) => (i.id === id ? { ...i, status } : i));
+    });
+    const optimistic = previous.find((i) => i.id === id);
 
     if (id.startsWith('local-') || id.startsWith('seed-')) {
       return optimistic ? { ...optimistic, status } : null;
@@ -151,11 +155,14 @@ export function useIncidents() {
       setIncidents(previous);
       return null;
     }
-  }, [incidents]);
+  }, []);
 
   const updateUrgency = useCallback(async (id: string, urgency: UrgencyLevel, urgency_reason: string): Promise<Incident | null> => {
-    const previous = incidents;
-    setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, urgency, urgency_reason } : i)));
+    let previous: Incident[] = [];
+    setIncidents((prev) => {
+      previous = prev;
+      return prev.map((i) => (i.id === id ? { ...i, urgency, urgency_reason } : i));
+    });
 
     if (id.startsWith('local-') || id.startsWith('seed-')) {
       const item = previous.find((i) => i.id === id);
@@ -179,7 +186,7 @@ export function useIncidents() {
       setIncidents(previous);
       return null;
     }
-  }, [incidents]);
+  }, []);
 
   const getHistory = useCallback(async (id: string): Promise<Array<{
     id: string;

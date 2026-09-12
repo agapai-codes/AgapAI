@@ -19,6 +19,12 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (!Number.isFinite(radius) || radius <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'radius must be a positive number' },
+        { status: 400 }
+      );
+    }
     if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
       return NextResponse.json({ success: false, error: 'Coordinates out of range' }, { status: 400 });
     }

@@ -1,5 +1,3 @@
-import { EmergencyReport } from './types';
-
 const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
 
 export interface ExtractedData {

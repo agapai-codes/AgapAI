@@ -164,6 +164,9 @@ export default function IncidentDrawer({
     setLoadingRelated(true);
     getRelated(incident.id).then((data) => {
       setRelatedIncidents(data || []);
+    }).catch(() => {
+      setRelatedIncidents([]);
+    }).finally(() => {
       setLoadingRelated(false);
     });
   }, [incident.id, relatedExpanded, getRelated]);
@@ -174,6 +177,9 @@ export default function IncidentDrawer({
     setLoadingHistory(true);
     getHistory(incident.id).then((data) => {
       setHistory(data || []);
+    }).catch(() => {
+      setHistory([]);
+    }).finally(() => {
       setLoadingHistory(false);
     });
   }, [incident.id, historyExpanded, getHistory]);

@@ -21,6 +21,16 @@ export async function PATCH(
     }
 
     const session = await getSessionUser().catch(() => null);
+
+    const isDispatcherOrAdmin = session?.role === 'dispatcher' || session?.role === 'admin';
+    if (!session || !isDispatcherOrAdmin) {
+      // Allow demo mode only when no auth is configured
+      const hasAuth = !!process.env.AUTH_SECRET;
+      if (hasAuth) {
+        return NextResponse.json({ success: false, error: 'Unauthorized: dispatcher or admin role required' }, { status: 401 });
+      }
+    }
+
     const changedBy = session?.email || 'dispatcher (demo)';
 
     const updated = await assignResponder(id, responder_id, changedBy);

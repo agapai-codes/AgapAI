@@ -20,6 +20,16 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await getSessionUser().catch(() => null);
+
+    const isDispatcherOrAdmin = session?.role === 'dispatcher' || session?.role === 'admin';
+    if (!session || !isDispatcherOrAdmin) {
+      const hasAuth = !!process.env.AUTH_SECRET;
+      if (hasAuth) {
+        return NextResponse.json({ success: false, error: 'Unauthorized: dispatcher or admin role required' }, { status: 401 });
+      }
+    }
+
     const body = await request.json().catch(() => ({}));
     const { id, status, lat, lng } = body ?? {};
 
