@@ -3,9 +3,15 @@
 // Application mode: 'demo' or 'live'
 // - demo: Uses Web Speech API, fallback extraction, seed incidents, polling
 // - live: Uses streaming STT, Gemini extraction, real DB, WebSocket (future)
-const MODE = process.env.NEXT_PUBLIC_MODE || 'demo';
+const VALID_MODES = ['demo', 'live'] as const;
+const RAW_MODE = process.env.NEXT_PUBLIC_MODE || 'demo';
 
-export const APP_MODE = MODE as 'demo' | 'live';
+// Runtime validation - warn and fallback to 'demo' if invalid
+if (!VALID_MODES.includes(RAW_MODE as any)) {
+  console.warn(`[Config] Invalid NEXT_PUBLIC_MODE="${RAW_MODE}". Falling back to "demo". Valid options: ${VALID_MODES.join(', ')}`);
+}
+
+export const APP_MODE = (VALID_MODES.includes(RAW_MODE as any) ? RAW_MODE : 'demo') as 'demo' | 'live';
 export const isDemo = APP_MODE === 'demo';
 export const isLive = APP_MODE === 'live';
 

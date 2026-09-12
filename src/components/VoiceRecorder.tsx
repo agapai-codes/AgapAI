@@ -41,6 +41,29 @@ export default function VoiceRecorder({
   useEffect(() => { onStopRef.current = onStop; }, [onStop]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
+  // VU meter update loop
+  const updateVUMeter = useCallback(() => {
+    if (!analyserRef.current) {
+      setAudioLevel(0);
+      return;
+    }
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
+    }
+    const average = sum / dataArray.length;
+    const normalizedLevel = Math.min(100, (average / 128) * 100);
+
+    setAudioLevel(normalizedLevel);
+
+    animationFrameRef.current = requestAnimationFrame(updateVUMeter);
+  }, []);
+
+  // Start audio capture and VU meter (live mode only)
   const startAudioCapture = useCallback(async () => {
     if (!isLive || mediaRecorderRef.current) return;
 
@@ -68,10 +91,13 @@ export default function VoiceRecorder({
       };
 
       mediaRecorder.start(1000);
+
+      // Start VU meter loop after analyser is ready
+      animationFrameRef.current = requestAnimationFrame(updateVUMeter);
     } catch (err) {
       console.error('Failed to start audio capture:', err);
     }
-  }, [isLive, onAudioChunk]);
+  }, [isLive, onAudioChunk, updateVUMeter]);
 
   const stopAudioCapture = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -97,26 +123,7 @@ export default function VoiceRecorder({
     }
   }, []);
 
-  const updateVUMeter = useCallback(() => {
-    if (!analyserRef.current) {
-      setAudioLevel(0);
-      return;
-    }
-
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
-
-    let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      sum += dataArray[i];
-    }
-    const average = sum / dataArray.length;
-    const normalizedLevel = Math.min(100, (average / 255) * 100);
-    setAudioLevel(normalizedLevel);
-
-    animationFrameRef.current = requestAnimationFrame(updateVUMeter);
-  }, []);
-
+  // Speech Recognition setup (demo mode uses Web Speech API)
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -149,7 +156,8 @@ export default function VoiceRecorder({
         onInterimTranscriptRef.current(finalTranscript + interimTranscript);
       }
 
-      if (!isLive) {
+      // Simulated audio level in demo mode (no real mic analysis)
+      if (isDemo) {
         setAudioLevel(Math.random() * 40 + 60);
       }
     };
@@ -177,8 +185,9 @@ export default function VoiceRecorder({
     recognitionRef.current = recognition;
 
     return () => { recognition.abort(); };
-  }, [language, isLive]);
+  }, [language]);
 
+  // Start/stop recording
   useEffect(() => {
     if (!recognitionRef.current) return;
     if (isRecording) {
@@ -186,35 +195,24 @@ export default function VoiceRecorder({
         recognitionRef.current.start();
         setError(null);
         setDuration(0);
+        // Start audio capture in live mode
         if (isLive) {
           startAudioCapture();
-        }
-        if (isLive && analyserRef.current) {
-          animationFrameRef.current = requestAnimationFrame(updateVUMeter);
         }
       } catch (e) {}
     } else {
       recognitionRef.current.stop();
       setAudioLevel(0);
       stopAudioCapture();
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
     }
-  }, [isRecording, isLive, startAudioCapture, stopAudioCapture, updateVUMeter]);
+  }, [isRecording, isLive, startAudioCapture, stopAudioCapture]);
 
+  // Duration timer
   useEffect(() => {
     if (!isRecording) return;
     const timer = setInterval(() => setDuration(d => d + 1), 1000);
     return () => clearInterval(timer);
   }, [isRecording]);
-
-  useEffect(() => {
-    if (isRecording && isLive && analyserRef.current && !animationFrameRef.current) {
-      animationFrameRef.current = requestAnimationFrame(updateVUMeter);
-    }
-  }, [isRecording, isLive, updateVUMeter]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -256,7 +254,9 @@ export default function VoiceRecorder({
               <p className="text-zinc-100 text-sm font-mono">{formatDuration(duration)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">AUDIO LEVEL</p>
+              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">
+                AUDIO LEVEL {isDemo && <span className="text-zinc-600">(simulated)</span>}
+              </p>
               <div className="flex gap-0.5 h-4 items-end">
                 {Array.from({ length: 20 }).map((_, i) => (
                   <div
@@ -276,13 +276,14 @@ export default function VoiceRecorder({
               <p className="text-zinc-400 text-sm font-mono">{language}</p>
             </div>
           </div>
-          <div className="mt-3 flex justify-center">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider ${
-              isDemo
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+          {/* Mode indicator */}
+          <div className="mt-3 pt-3 border-t border-zinc-800/50">
+            <span className={`text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded border font-mono ${
+              isLive 
+                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' 
+                : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
             }`}>
-              {isDemo ? 'DEMO MODE - Browser STT' : 'LIVE MODE - Server STT'}
+              {isLive ? 'LIVE MODE — Server STT Ready' : 'DEMO MODE — Browser STT'}
             </span>
           </div>
         </div>
