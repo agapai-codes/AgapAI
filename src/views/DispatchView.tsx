@@ -52,12 +52,19 @@ export default function DispatcherDashboard() {
     getResponders().then(setResponders).catch(() => {});
   }, [getResponders]);
 
-  // Trigger map resize when drawer toggles
+  // Trigger map resize when drawer toggles — use double rAF for reliable layout calc
   useEffect(() => {
-    const timer = setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
-    }, 350);
-    return () => clearTimeout(timer);
+    let raf1: number;
+    let raf2: number;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
   }, [activeIncident]);
 
   // Triage all incidents on load

@@ -1,4 +1,20 @@
 const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
+const VALID_INCIDENT_TYPES = ['FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'] as const;
+
+function normalizeIncidentType(raw: string | undefined | null): string {
+  if (!raw || typeof raw !== 'string') return 'MEDICAL';
+  const upper = raw.trim().toUpperCase().replace(/\s+/g, '_');
+  if ((VALID_INCIDENT_TYPES as readonly string[]).includes(upper)) return upper;
+  // Fuzzy match for common variations
+  if (/FIRE|BURN|SMOKE/.test(upper)) return 'FIRE';
+  if (/ACCIDENT|CRASH|COLLISION|VEHICLE/.test(upper)) return 'ACCIDENT';
+  if (/MEDIC|INJUR|PAIN|BLEED|UNCONSCIOUS/.test(upper)) return 'MEDICAL';
+  if (/FLOOD|EARTHQUAKE|TYPHOON|LANDSLIDE|DISASTER|STORM/.test(upper)) return 'DISASTER';
+  if (/VIOLEN|GUN|STAB|ASSAULT|FIGHT|WEAPON|SHOOT/.test(upper)) return 'VIOLENCE';
+  if (/CHEM|GAS|TOXIC|HAZMAT|RADIATION|SPILL/.test(upper)) return 'HAZARDOUS';
+  if (/MISS|LOST|DISAPPEAR/.test(upper)) return 'MISSING_PERSON';
+  return 'MEDICAL';
+}
 
 export interface ExtractedData {
   transcript: string;
@@ -42,7 +58,7 @@ export async function extractEmergencyInfo(transcript: string): Promise<Extracte
 
   return {
     transcript,
-    incident_type: typeof data.incident_type === 'string' ? data.incident_type.toLowerCase() : 'other',
+    incident_type: normalizeIncidentType(data.incident_type),
     condition: data.condition || 'unknown',
     location_description: data.location_description || 'location unknown',
     people_affected: typeof data.people_affected === 'number' ? data.people_affected : 1,
