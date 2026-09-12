@@ -288,6 +288,16 @@ export default function DispatchIncidentDetails({
           </div>
         </div>
 
+        {/* ASSESSMENT RATIONALE */}
+        <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-lg p-3">
+          <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase mb-1.5 font-mono flex items-center gap-1.5">
+            <Brain size={10} /> ASSESSMENT RATIONALE
+          </p>
+          <p className="text-[11px] text-zinc-300 leading-relaxed font-mono italic">
+            {incident.urgency_reason || triageResult?.urgency_reason || 'Standard report; assessed as non-urgent'}
+          </p>
+        </div>
+
         {/* HAZARDS */}
         {hazards.length > 0 && (
           <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-lg p-3">
