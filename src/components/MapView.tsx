@@ -19,7 +19,10 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
     let cancelled = false;
 
     const initMap = async () => {
-      if (!mapRef.current || mapInstanceRef.current || cancelled) return;
+      if (!mapRef.current || cancelled) return;
+      
+      // Check if container already has a Leaflet map (StrictMode double-mount)
+      if ((mapRef.current as any)._leaflet_id) return;
 
       const L = (await import('leaflet')).default;
 
