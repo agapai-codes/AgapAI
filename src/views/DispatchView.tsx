@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
 import LiveMap from '../components/LiveMap';
@@ -186,6 +186,7 @@ export default function DispatcherDashboard() {
                 placeholder="Search incidents, conditions, locations..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                aria-label="Search incidents"
                 className="w-full bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg pl-9 pr-4 py-2 text-xs font-medium text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 shadow-xl"
               />
             </div>
@@ -193,6 +194,7 @@ export default function DispatcherDashboard() {
               {ALL_TYPES.map(type => (
                 <button key={type} onClick={() => setSelectedType(type)}
                   type="button"
+                  aria-pressed={selectedType === type}
                   className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
                   style={{
                     background: selectedType === type ? '#f4f4f5' : 'rgba(13,15,18,0.8)',
@@ -211,6 +213,7 @@ export default function DispatcherDashboard() {
         {/* ═══ RIGHT-SIDE DRAWER ═══ */}
         {activeIncident && (
           <IncidentDrawer
+            key={activeIncident.id}
             incident={activeIncident}
             responders={responders}
             onClose={() => setActiveIncident(null)}

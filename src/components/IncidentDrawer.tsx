@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  X, AlertTriangle, Zap, MapPin, Users, Clock, ChevronRight, Sparkles,
+  X, AlertTriangle, Zap, MapPin, Users, Clock, Sparkles,
   Brain, Wind, Droplets, Radio, Navigation, ShieldAlert, FileText
 } from 'lucide-react';
 import type { Incident, UrgencyLevel, IncidentStatus } from '../types/incident';
@@ -112,10 +112,11 @@ export default function IncidentDrawer({
   const [resolveNotes, setResolveNotes] = useState('');
   const [showResolve, setShowResolve] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const urgency = URGENCY_STYLE[incident.urgency || 'medium'];
   const typeConfig = TYPE_CONFIG[incident.type] || { color: '#71717a', icon: '📋' };
-  const status = STATUS_STYLE[incident.status];
+  const status = STATUS_STYLE[incident.status] ?? { color: '#71717a', bg: 'rgba(113,113,122,0.12)', border: 'rgba(113,113,122,0.3)' };
   const serialId = generateSerialId(incident.id);
   const confidence = incident.confidence ?? 0.7;
   const condition = getConditionLabel(incident);
@@ -123,8 +124,32 @@ export default function IncidentDrawer({
 
   const canDispatch = incident.status === 'PENDING' || incident.status === 'REVIEWING' || incident.status === 'PRIORITIZED';
 
+  // Escape key handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Loading wrapper for async actions
+  const withLoading = useCallback(async (fn: () => void | Promise<void>) => {
+    setIsLoading(true);
+    try {
+      await fn();
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return (
-    <aside className="w-[420px] min-w-[420px] max-w-[420px] h-full flex flex-col shrink-0 border-l border-zinc-800/50 bg-[#0d0f12] overflow-hidden z-20 animate-slide-in-right">
+    <aside
+      className="w-[420px] min-w-[420px] max-w-[420px] h-full flex flex-col shrink-0 border-l border-zinc-800/50 bg-[#0d0f12] overflow-hidden z-20 animate-slide-in-right"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Incident details for ${incident.description || incident.type}`}
+    >
 
       {/* ── DRAWER HEADER ── */}
       <div className="px-5 py-4 border-b border-zinc-800/50 flex items-center justify-between shrink-0">
@@ -256,7 +281,7 @@ export default function IncidentDrawer({
               <p className="text-sm font-semibold text-zinc-200">{incident.location}</p>
               <p className="text-[10px] text-zinc-500 font-mono mt-0.5 flex items-center gap-1">
                 <Navigation size={9} />
-                {incident.coordinates.lat.toFixed(6)}, {incident.coordinates.lng.toFixed(6)}
+                {incident.coordinates?.lat?.toFixed(6) ?? '—'}, {incident.coordinates?.lng?.toFixed(6) ?? '—'}
               </p>
             </div>
           </div>
@@ -338,8 +363,9 @@ export default function IncidentDrawer({
         <div className="grid grid-cols-2 gap-2">
           {canDispatch && (
             <button
-              onClick={() => onStatusUpdate(incident.id, 'DISPATCHED')}
-              className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg border-none flex items-center justify-center gap-1.5 transition-colors font-mono"
+              onClick={() => withLoading(() => onStatusUpdate(incident.id, 'DISPATCHED'))}
+              disabled={isLoading}
+              className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg border-none flex items-center justify-center gap-1.5 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <AlertTriangle size={13} />
               DISPATCH UNIT
@@ -347,28 +373,31 @@ export default function IncidentDrawer({
           )}
           {incident.status === 'DISPATCHED' && (
             <button
-              onClick={() => onStatusUpdate(incident.id, 'EN_ROUTE')}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition-colors font-mono"
+              onClick={() => withLoading(() => onStatusUpdate(incident.id, 'EN_ROUTE'))}
+              disabled={isLoading}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed"
             >
               EN ROUTE
             </button>
           )}
           {incident.status === 'EN_ROUTE' && (
             <button
-              onClick={() => onStatusUpdate(incident.id, 'ARRIVED')}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition-colors font-mono"
+              onClick={() => withLoading(() => onStatusUpdate(incident.id, 'ARRIVED'))}
+              disabled={isLoading}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ARRIVED
             </button>
           )}
           <button
-            onClick={() => {
+            onClick={() => withLoading(() => {
               const priorities: UrgencyLevel[] = ['critical', 'high', 'medium', 'low'];
               const currentIdx = priorities.indexOf(incident.urgency || 'medium');
               const nextPriority = priorities[(currentIdx + 1) % priorities.length];
-              onUrgencyOverride(incident.id, nextPriority);
-            }}
-            className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors font-mono"
+              return onUrgencyOverride(incident.id, nextPriority);
+            })}
+            disabled={isLoading}
+            className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Zap size={13} />
             PRIORITY: {(incident.urgency || 'medium').toUpperCase()}

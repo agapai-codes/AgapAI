@@ -3,7 +3,7 @@
 import { useEffect, useRef, useMemo } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Incident } from '../types/incident';
+import type { Incident } from '../types/incident';
 
 const FREE_OSM_STYLE = {
   version: 8 as const,
