@@ -41,6 +41,9 @@ const INCIDENT_COLORS: Record<string, string> = {
   ACCIDENT: '#f97316',
   MEDICAL: '#3b82f6',
   DISASTER: '#a855f7',
+  VIOLENCE: '#f43f5e',
+  HAZARDOUS: '#facc15',
+  MISSING_PERSON: '#06b6d4',
 };
 
 const STATUS_ICONS: Record<string, string> = {

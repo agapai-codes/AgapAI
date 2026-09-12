@@ -15,9 +15,12 @@ export interface ExtractedInfo {
 }
 
 function detectType(text: string): IncidentType {
-  if (/(fire|burning|smoke|flames|wildfire)/.test(text)) return 'FIRE';
+  if (/(fire|burning|smoke|flames|wildfire|arson)/.test(text)) return 'FIRE';
   if (/(accident|collision|crash|vehicle|tricycle|car|motorcycle|motor)/.test(text)) return 'ACCIDENT';
   if (/(flood|earthquake|typhoon|landslide|storm|volcano|tsunami|disaster|evacuat)/.test(text)) return 'DISASTER';
+  if (/(gun|stab|assault|fight|weapon|shooting|shot|knife|attack|robbery|violence)/.test(text)) return 'VIOLENCE';
+  if (/(chemical|gas leak|toxic|hazmat|radiation|spill|hazardous)/.test(text)) return 'HAZARDOUS';
+  if (/(missing|lost|cannot find|disappeared|looking for)/.test(text)) return 'MISSING_PERSON';
   return 'MEDICAL';
 }
 
@@ -31,6 +34,8 @@ function detectCondition(text: string): string {
   if (/(fracture|broken|can'?t move|deformed)/.test(text)) parts.push('possible fracture');
   if (/(trapped|stuck|pinned)/.test(text)) parts.push('trapped');
   if (/(pain|hurts|hurting)/.test(text)) parts.push('pain');
+  if (/(head injury|head wound|hit head|skull)/.test(text)) parts.push('head injury');
+  if (/(shot|stab|wound)/.test(text)) parts.push('trauma wound');
   return parts.length > 0 ? parts.join(', ') : 'unknown condition';
 }
 
@@ -56,8 +61,9 @@ function detectHazards(text: string): string[] {
   if (/(flood|water rising|floodwater)/.test(text)) hazards.push('rising water');
   if (/(trapped|stuck)/.test(text)) hazards.push('trapped victim');
   if (/(electric|live wire|power line)/.test(text)) hazards.push('electrical hazard');
-  if (/(gas|chemical|toxic)/.test(text)) hazards.push('hazardous material');
+  if (/(gas|chemical|toxic|hazmat)/.test(text)) hazards.push('hazardous material');
   if (/(collapse|structural|debris)/.test(text)) hazards.push('structural damage');
+  if (/(gun|weapon|knife|shooter)/.test(text)) hazards.push('armed individual');
   return hazards;
 }
 
@@ -70,7 +76,7 @@ export function extractFallback(transcript: string): ExtractedInfo {
   const location_description = detectLocation(transcript);
 
   const critical = /(unconscious|not breathing|severe bleeding|bleeding heavily|trapped|cardiac|heart attack|chest pain)/.test(text);
-  const high = /(bleed|burn|fracture|broken|difficulty breathing|injur)/.test(text);
+  const high = /(bleed|burn|fracture|broken|difficulty breathing|injur|shot|stab)/.test(text);
 
   let urgency: ExtractedInfo['urgency'] = 'medium';
   let urgency_reason = 'Minor or precautionary report; no immediate life threat detected.';
