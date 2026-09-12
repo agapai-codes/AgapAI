@@ -143,10 +143,10 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
 
   // Fly to active incident
   useEffect(() => {
-    if (!mapRef.current || !activeIncident) return;
+    if (!mapRef.current || !activeIncident?.coordinates) return;
     mapRef.current.flyTo({
       center: [activeIncident.coordinates.lng, activeIncident.coordinates.lat],
-      zoom: 15,
+      zoom: 16,
       pitch: 0,
       duration: 1500,
     });

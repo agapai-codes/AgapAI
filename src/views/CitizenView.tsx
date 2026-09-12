@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
-import { Zap, Mic, Bot, ArrowRight, RotateCcw, ChevronRight, X, Send, CheckCircle2, MapPin } from 'lucide-react';
+import { Zap, Mic, ArrowRight, RotateCcw, ChevronRight, X, Send, CheckCircle2, MapPin } from 'lucide-react';
 import { useIncidents } from '../hooks/useIncidents';
 import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
@@ -44,9 +44,6 @@ export default function CitizenView() {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [firstAidProtocol, setFirstAidProtocol] = useState<FirstAidProtocol | null>(null);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
-  const [showChatSidebar, setShowChatSidebar] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'ai'; text: string; protocol?: FirstAidProtocol }>>([]);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
   const [gpsCoords, setGpsCoords] = useState<{ lng: number; lat: number } | null>(null);
@@ -60,10 +57,10 @@ export default function CitizenView() {
     return () => clearInterval(timer);
   }, []);
 
-  const acquireGPS = useCallback((): Promise<{ lng: number; lat: number }> => {
+  const acquireGPS = useCallback((): Promise<{ lng: number; lat: number } | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        resolve({ lng: 124.2452, lat: 8.2280 });
+        resolve(null);
         return;
       }
       setGpsStatus('loading');
@@ -75,12 +72,11 @@ export default function CitizenView() {
           resolve(coords);
         },
         () => {
-          const fallback = { lng: 124.2452, lat: 8.2280 };
-          setGpsCoords(fallback);
+          setGpsCoords(null);
           setGpsStatus('error');
-          resolve(fallback);
+          resolve(null);
         },
-        { timeout: 5000, enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     });
   }, []);
@@ -88,6 +84,10 @@ export default function CitizenView() {
   const handleSOS = useCallback(async () => {
     try {
       const coords = await acquireGPS();
+      if (!coords) {
+        toast.error('GPS location required for emergency beacon');
+        return;
+      }
       const result = await createIncident({
         type: 'MEDICAL',
         location: 'Current Location (GPS)',
@@ -117,6 +117,12 @@ export default function CitizenView() {
 
     setExtractionStep('capturing-location');
     const coords = gpsCoords || await acquireGPS();
+    if (!coords) {
+      setIsProcessing(false);
+      setExtractionStep(null);
+      toast.error('GPS location required for report submission');
+      return;
+    }
 
     setExtractionStep('analyzing-transcript');
     try {
@@ -178,17 +184,6 @@ export default function CitizenView() {
     setShowVoiceModal(false);
     setIsRecording(false);
   }, []);
-
-  const handleChatSubmit = useCallback(() => {
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput.trim();
-    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-    setChatInput('');
-    const protocol = getFirstAid(userMsg);
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, { role: 'ai', text: protocol.steps.map((s, i) => `${i + 1}. ${s}`).join('\n'), protocol }]);
-    }, 600);
-  }, [chatInput]);
 
   const handleTryDemo = () => {
     setTranscript('My friend fell from the stairs. He is unconscious and bleeding from his head. We are inside the engineering building, third floor.');
@@ -364,7 +359,7 @@ export default function CitizenView() {
         {gpsStatus !== 'idle' && (
           <p className={`text-[11px] mt-1 flex items-center gap-1 ${gpsStatus === 'ready' ? 'text-[#22c55e]' : gpsStatus === 'loading' ? 'text-[#eab308]' : 'text-[#f87171]'}`}>
             <MapPin size={12} />
-            {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'GPS unavailable — using default location'}
+            {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'GPS unavailable — location required'}
           </p>
         )}
 
@@ -423,7 +418,7 @@ export default function CitizenView() {
 
         {transcript && !isProcessing && (
           <button onClick={handleVoiceSubmit} className="mt-6 px-8 py-3 bg-[#fafafa] text-[#09090b] font-semibold rounded-lg border-none cursor-pointer flex items-center gap-2 shadow-lg">
-            <Bot size={16} /> Submit Report
+            <Send size={16} /> Submit Report
           </button>
         )}
 
@@ -456,11 +451,10 @@ export default function CitizenView() {
 
       {/* Feature cards */}
       {!transcript && !isRecording && (
-        <div className="grid grid-cols-3 gap-6 w-full max-w-3xl mx-auto px-6 pb-12 relative z-20">
+        <div className="grid grid-cols-2 gap-6 w-full max-w-2xl mx-auto px-6 pb-12 relative z-20">
           {[
             { icon: <Zap size={20} />, title: 'Tap SOS', desc: 'Instant emergency activation with one touch', status: 'READY', color: '#ef4444', onClick: handleSOS },
             { icon: <Mic size={20} />, title: 'Voice Report', desc: 'Speak naturally — AI converts your words into a structured report', status: 'READY', color: '#3b82f6', onClick: () => setShowVoiceModal(true) },
-            { icon: <Bot size={20} />, title: 'AI Triage', desc: 'Get first-aid guidance based on validated protocols', status: 'READY', color: '#22c55e', onClick: () => setShowChatSidebar(true) },
           ].map((f) => (
             <div key={f.title} onClick={f.onClick} role="button" tabIndex={0} aria-label={f.title}
               onKeyDown={e => e.key === 'Enter' && f.onClick()}
@@ -522,57 +516,6 @@ export default function CitizenView() {
               </button>
               <button onClick={() => { handleVoiceSubmit(); handleVoiceModalClose(); }} disabled={!transcript.trim()} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none transition-all" style={{ cursor: transcript.trim() ? 'pointer' : 'not-allowed', background: transcript.trim() ? '#fafafa' : '#27272a', color: transcript.trim() ? '#09090b' : '#52525b' }}>
                 <Send size={16} className="inline mr-2 align-middle" /> Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI TRIAGE SIDEBAR */}
-      {showChatSidebar && (
-        <div role="complementary" aria-label="AI Triage Assistant"
-          className="fixed top-0 bottom-0 right-0 w-full max-w-md bg-[#18181b] border-l border-[#27272a] z-50 flex flex-col shadow-[-25px_0_50px_rgba(0,0,0,0.5)]">
-          <div className="flex items-center justify-between p-4 border-b border-[#27272a]">
-            <h2 className="text-lg font-bold text-[#fafafa]">AI First-Aid Triage</h2>
-            <button onClick={() => setShowChatSidebar(false)} className="text-[#71717a] cursor-pointer bg-transparent border-none" aria-label="Close"><X size={20} /></button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            {chatMessages.length === 0 && (
-              <div className="text-center text-[#71717a] py-8">
-                <Bot size={32} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm">Describe symptoms or an emergency</p>
-                <p className="text-[11px] mt-1 text-[#52525b]">Based on Red Cross first-aid protocols</p>
-              </div>
-            )}
-            {chatMessages.map((msg, i) => (
-              <div key={i} className="mb-4">
-                <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-1`}>
-                  <div className="max-w-[80%] p-3 rounded-xl" style={{ background: msg.role === 'user' ? '#dc2626' : '#27272a', color: msg.role === 'user' ? '#fff' : '#d4d4d8' }}>
-                    <p className="text-sm m-0 whitespace-pre-line">{msg.text}</p>
-                  </div>
-                </div>
-                {msg.protocol && (
-                  <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-lg p-3 mt-2">
-                    <p className="text-[10px] font-bold text-[#10b981] uppercase tracking-widest mb-1">Protocol: {msg.protocol.title}</p>
-                    <p className="text-[10px] text-[#6b7280] font-mono">{msg.protocol.source}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="p-4 border-t border-[#27272a]">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleChatSubmit()}
-                placeholder="Describe symptoms..."
-                aria-label="Symptom description"
-                className="flex-1 bg-[#27272a] border border-[#3f3f46] rounded-lg p-2.5 px-4 text-sm text-[#fafafa] outline-none"
-              />
-              <button onClick={handleChatSubmit} className="p-2.5 px-4 bg-[#dc2626] text-white rounded-lg border-none cursor-pointer" aria-label="Send">
-                <Send size={16} />
               </button>
             </div>
           </div>
