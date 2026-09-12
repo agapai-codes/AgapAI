@@ -97,7 +97,7 @@ export default function Dashboard() {
       {/* HEADER */}
       <header className="h-11 bg-[#111827] border-b border-[#1E3A5F] px-4 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
-          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-[#9CA3AF] cursor-pointer p-1">
+          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-[#9CA3AF] cursor-pointer p-1" aria-label="Toggle menu" aria-expanded={menuOpen}>
             {menuOpen ? <X size={16} /> : <Menu size={16} />}
           </button>
           <Image src="/logo.jpg" alt="AgapAI" width={24} height={24} className="object-contain" />

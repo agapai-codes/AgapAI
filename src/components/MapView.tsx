@@ -113,19 +113,21 @@ export default function MapView({ reports, selectedReportId, onReportSelect }: M
             iconAnchor: [size/2, size/2],
           });
 
+          const escapeHtml = (str: string) => str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c] || c));
+
           const marker = L.marker([report.latitude, report.longitude], { icon })
             .addTo(map)
             .bindPopup(`
               <div style="min-width: 160px; font-family: monospace; font-size: 11px;">
                 <div style="font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">
-                  ${report.incident_type.replace('_', ' ')}
+                  ${escapeHtml(report.incident_type.replace('_', ' '))}
                 </div>
                 <div style="color: #9CA3AF; margin-bottom: 4px;">
-                  ${report.location_description}
+                  ${escapeHtml(report.location_description)}
                 </div>
                 <div style="display: flex; gap: 4px; margin-bottom: 4px;">
                   <span style="padding: 1px 4px; background: ${color}22; color: ${color}; border: 1px solid ${color}44; font-size: 9px; font-weight: bold;">
-                    ${report.urgency.toUpperCase()}
+                    ${escapeHtml(report.urgency.toUpperCase())}
                   </span>
                 </div>
                 <div style="color: #6B7280; font-size: 10px;">
