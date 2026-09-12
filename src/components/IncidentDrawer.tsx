@@ -48,6 +48,7 @@ interface IncidentDrawerProps {
   incident: Incident;
   responders: { id: string; name: string; status: string }[];
   onClose: () => void;
+  onSelectIncident: (incident: Incident) => void;
   onStatusUpdate: (id: string, status: IncidentStatus) => void;
   onUrgencyOverride: (id: string, urgency: UrgencyLevel, reason?: string) => void;
   onAssign: (incidentId: string, responderId: string) => void;
@@ -116,6 +117,7 @@ export default function IncidentDrawer({
   incident,
   responders,
   onClose,
+  onSelectIncident,
   onStatusUpdate,
   onUrgencyOverride,
   onAssign,
@@ -129,6 +131,7 @@ export default function IncidentDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [relatedIncidents, setRelatedIncidents] = useState<Incident[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
+  const [relatedExpanded, setRelatedExpanded] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -155,14 +158,15 @@ export default function IncidentDrawer({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Fetch related incidents
+  // Fetch related incidents on demand
   useEffect(() => {
+    if (!relatedExpanded) return;
     setLoadingRelated(true);
     getRelated(incident.id).then((data) => {
       setRelatedIncidents(data || []);
       setLoadingRelated(false);
     });
-  }, [incident.id, getRelated]);
+  }, [incident.id, relatedExpanded, getRelated]);
 
   // Fetch history on expand
   useEffect(() => {
@@ -407,47 +411,51 @@ export default function IncidentDrawer({
 
         {/* ── RELATED INCIDENTS ── */}
         <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-lg p-3">
-          <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase mb-2 font-mono flex items-center gap-1.5">
+          <button
+            onClick={() => setRelatedExpanded(!relatedExpanded)}
+            className="w-full text-left text-[9px] font-black tracking-widest text-zinc-500 uppercase mb-2 font-mono flex items-center gap-1.5 hover:text-zinc-300 transition-colors"
+          >
             <Link2 size={10} /> RELATED INCIDENTS
-          </p>
-          {loadingRelated ? (
-            <p className="text-[10px] text-zinc-500 font-mono">Loading...</p>
-          ) : relatedIncidents.length === 0 ? (
-            <p className="text-[10px] text-zinc-500 font-mono">No related incidents found</p>
-          ) : (
-            <div className="space-y-1.5">
-              {relatedIncidents.map((ri) => {
-                const riType = TYPE_CONFIG[ri.type] || { color: '#71717a', icon: '📋' };
-                const riStatus = STATUS_STYLE[ri.status] ?? { color: '#71717a', bg: 'rgba(113,113,122,0.12)', border: 'rgba(113,113,122,0.3)' };
-                return (
-                  <div
-                    key={ri.id}
-                    className="bg-zinc-950/60 border border-zinc-800/30 rounded-md p-2 cursor-pointer hover:border-zinc-700/60 transition-colors"
-                    onClick={() => {
-                      /* parent should handle selecting this incident via the parent view */
-                    }}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs">{riType.icon}</span>
-                      <span
-                        className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded border font-mono"
-                        style={{ color: riType.color, backgroundColor: `${riType.color}15`, borderColor: `${riType.color}40` }}
-                      >
-                        {ri.type.replace('_', ' ')}
-                      </span>
-                      <span
-                        className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded border font-mono"
-                        style={{ color: riStatus.color, backgroundColor: riStatus.bg, borderColor: riStatus.border }}
-                      >
-                        {ri.status.replace('_', ' ')}
-                      </span>
+            <span className="ml-auto text-zinc-600">{relatedExpanded ? '▾' : '▸'}</span>
+          </button>
+          {relatedExpanded && (
+            loadingRelated ? (
+              <p className="text-[10px] text-zinc-500 font-mono">Loading...</p>
+            ) : relatedIncidents.length === 0 ? (
+              <p className="text-[10px] text-zinc-500 font-mono">No related incidents found</p>
+            ) : (
+              <div className="space-y-1.5">
+                {relatedIncidents.map((ri) => {
+                  const riType = TYPE_CONFIG[ri.type] || { color: '#71717a', icon: '📋' };
+                  const riStatus = STATUS_STYLE[ri.status] ?? { color: '#71717a', bg: 'rgba(113,113,122,0.12)', border: 'rgba(113,113,122,0.3)' };
+                  return (
+                    <div
+                      key={ri.id}
+                      className="bg-zinc-950/60 border border-zinc-800/30 rounded-md p-2 cursor-pointer hover:border-zinc-700/60 transition-colors"
+                      onClick={() => onSelectIncident(ri)}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs">{riType.icon}</span>
+                        <span
+                          className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded border font-mono"
+                          style={{ color: riType.color, backgroundColor: `${riType.color}15`, borderColor: `${riType.color}40` }}
+                        >
+                          {ri.type.replace('_', ' ')}
+                        </span>
+                        <span
+                          className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded border font-mono"
+                          style={{ color: riStatus.color, backgroundColor: riStatus.bg, borderColor: riStatus.border }}
+                        >
+                          {ri.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 truncate font-mono">{ri.location}</p>
+                      <p className="text-[9px] text-zinc-600 font-mono">{timeAgo(ri.timestamp)}</p>
                     </div>
-                    <p className="text-[10px] text-zinc-400 truncate font-mono">{ri.location}</p>
-                    <p className="text-[9px] text-zinc-600 font-mono">{timeAgo(ri.timestamp)}</p>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
 

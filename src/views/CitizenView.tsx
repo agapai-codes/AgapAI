@@ -83,18 +83,27 @@ export default function CitizenView() {
 
   // SOS handler — captures GPS + sends beacon
   const handleSOS = useCallback(async () => {
-    const coords = await acquireGPS();
-    await createIncident({
-      type: 'MEDICAL',
-      location: 'Current Location (GPS)',
-      description: 'Emergency beacon activated',
-      reporter: user?.name || user?.email || 'System (SOS)',
-      reporter_email: user?.email,
-      coordinates: coords,
-      urgency: 'critical',
-      urgency_reason: 'One-tap SOS activated',
-    });
-    toast.success('Emergency beacon activated');
+    try {
+      const coords = await acquireGPS();
+      const result = await createIncident({
+        type: 'MEDICAL',
+        location: 'Current Location (GPS)',
+        description: 'Emergency beacon activated',
+        reporter: user?.name || user?.email || 'System (SOS)',
+        reporter_email: user?.email,
+        coordinates: coords,
+        urgency: 'critical',
+        urgency_reason: 'One-tap SOS activated',
+      });
+      if (result) {
+        toast.success('Emergency beacon activated');
+      } else {
+        toast.error('Failed to send beacon. Please try again.');
+      }
+    } catch (err) {
+      console.error('SOS failed:', err);
+      toast.error('Emergency beacon failed. Check your connection.');
+    }
   }, [acquireGPS, createIncident, user]);
 
   // Submit transcript for processing
@@ -439,7 +448,7 @@ export default function CitizenView() {
               <button onClick={handleToggleRecording} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none cursor-pointer transition-all" style={{ background: isRecording ? '#dc2626' : '#27272a', color: isRecording ? '#fff' : '#d4d4d8' }}>
                 <Mic size={16} className="inline mr-2 align-middle" /> {isRecording ? 'Stop' : 'Start'}
               </button>
-              <button onClick={() => { handleVoiceModalClose(); handleVoiceSubmit(); }} disabled={!transcript.trim()} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none transition-all" style={{ cursor: transcript.trim() ? 'pointer' : 'not-allowed', background: transcript.trim() ? '#fafafa' : '#27272a', color: transcript.trim() ? '#09090b' : '#52525b' }}>
+              <button onClick={() => { handleVoiceSubmit(); handleVoiceModalClose(); }} disabled={!transcript.trim()} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none transition-all" style={{ cursor: transcript.trim() ? 'pointer' : 'not-allowed', background: transcript.trim() ? '#fafafa' : '#27272a', color: transcript.trim() ? '#09090b' : '#52525b' }}>
                 <Send size={16} className="inline mr-2 align-middle" /> Submit
               </button>
             </div>

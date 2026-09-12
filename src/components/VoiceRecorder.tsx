@@ -16,10 +16,18 @@ export default function VoiceRecorder({
   onStop
 }: VoiceRecorderProps) {
   const recognitionRef = useRef<any>(null);
+  const onTranscriptRef = useRef(onTranscript);
+  const onInterimTranscriptRef = useRef(onInterimTranscript);
+  const onStopRef = useRef(onStop);
   const [isSupported, setIsSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
+
+  // Keep refs up to date
+  useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
+  useEffect(() => { onInterimTranscriptRef.current = onInterimTranscript; }, [onInterimTranscript]);
+  useEffect(() => { onStopRef.current = onStop; }, [onStop]);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -43,17 +51,16 @@ export default function VoiceRecorder({
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcript + ' ';
-          onTranscript(finalTranscript.trim());
+          onTranscriptRef.current(finalTranscript.trim());
         } else {
           interimTranscript += transcript;
         }
       }
 
       if (interimTranscript) {
-        onInterimTranscript(finalTranscript + interimTranscript);
+        onInterimTranscriptRef.current(finalTranscript + interimTranscript);
       }
 
-      // Simulate audio level
       setAudioLevel(Math.random() * 40 + 60);
     };
 
@@ -68,6 +75,7 @@ export default function VoiceRecorder({
       } else {
         setError(`Error: ${event.error}`);
       }
+      onStopRef.current();
     };
 
     recognition.onend = () => {
@@ -95,7 +103,6 @@ export default function VoiceRecorder({
     }
   }, [isRecording]);
 
-  // Duration timer
   useEffect(() => {
     if (!isRecording) return;
     const timer = setInterval(() => setDuration(d => d + 1), 1000);
@@ -110,9 +117,9 @@ export default function VoiceRecorder({
 
   if (!isSupported) {
     return (
-      <div className="max-w-2xl mx-auto p-4 bg-[#DC2626]/10 border border-[#DC2626]/30">
-        <p className="text-[#DC2626] font-bold text-sm mono">SPEECH RECOGNITION UNAVAILABLE</p>
-        <p className="text-[#9CA3AF] text-xs mt-1">Use Google Chrome on desktop or Android.</p>
+      <div className="max-w-2xl mx-auto p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <p className="text-red-400 font-bold text-sm font-mono">SPEECH RECOGNITION UNAVAILABLE</p>
+        <p className="text-zinc-400 text-xs mt-1">Use Google Chrome on desktop or Android.</p>
       </div>
     );
   }
@@ -122,35 +129,35 @@ export default function VoiceRecorder({
   return (
     <div className="max-w-2xl mx-auto">
       {error && (
-        <div className="mb-4 p-3 bg-[#DC2626]/10 border border-[#DC2626]/30">
-          <p className="text-[#DC2626] text-sm mono">{error}</p>
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <p className="text-red-400 text-sm font-mono">{error}</p>
         </div>
       )}
 
       {isRecording && (
-        <div className="bg-[#0F1520] border border-[#1E3A5F] p-4">
+        <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 rounded-lg">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <p className="data-label mb-1">STATUS</p>
+              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">STATUS</p>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#DC2626] animate-pulse" />
-                <span className="text-[#DC2626] text-sm font-bold mono">RECORDING</span>
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-red-400 text-sm font-bold font-mono">RECORDING</span>
               </div>
             </div>
             <div>
-              <p className="data-label mb-1">DURATION</p>
-              <p className="text-[#F9FAFB] text-sm mono">{formatDuration(duration)}</p>
+              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">DURATION</p>
+              <p className="text-zinc-100 text-sm font-mono">{formatDuration(duration)}</p>
             </div>
             <div>
-              <p className="data-label mb-1">AUDIO LEVEL</p>
+              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">AUDIO LEVEL</p>
               <div className="flex gap-0.5 h-4 items-end">
                 {Array.from({ length: 20 }).map((_, i) => (
                   <div
                     key={i}
                     className={`w-1.5 transition-all duration-100 ${
                       i < audioLevel / 5
-                        ? i < 12 ? 'bg-[#10B981]' : i < 16 ? 'bg-[#F59E0B]' : 'bg-[#DC2626]'
-                        : 'bg-[#1C2738]'
+                        ? i < 12 ? 'bg-emerald-500' : i < 16 ? 'bg-amber-500' : 'bg-red-500'
+                        : 'bg-zinc-800'
                     }`}
                     style={{ height: `${Math.max(20, (i + 1) * 5)}%` }}
                   />
@@ -158,8 +165,8 @@ export default function VoiceRecorder({
               </div>
             </div>
             <div>
-              <p className="data-label mb-1">LANGUAGE</p>
-              <p className="text-[#9CA3AF] text-sm mono">en-US</p>
+              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">LANGUAGE</p>
+              <p className="text-zinc-400 text-sm font-mono">en-US</p>
             </div>
           </div>
         </div>

@@ -247,6 +247,7 @@ export default function DispatcherDashboard() {
             incident={activeIncident}
             responders={responders}
             onClose={() => setActiveIncident(null)}
+            onSelectIncident={setActiveIncident}
             onStatusUpdate={handleStatusUpdate}
             onUrgencyOverride={handleUrgencyOverride}
             onAssign={handleAssign}
