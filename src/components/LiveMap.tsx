@@ -295,7 +295,7 @@ export default function LiveMap({ incidents, activeIncident, onIncidentClick }: 
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', minHeight: '500px', position: 'relative', overflow: 'hidden', background: '#09090b' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#09090b' }}>
       <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
       <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(24,24,27,0.9)', backdropFilter: 'blur(8px)', padding: '8px 12px', borderRadius: '8px', border: '1px solid #27272a', zIndex: 10 }}>
         <p style={{ fontSize: '10px', color: '#71717a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Iligan City, Philippines</p>
