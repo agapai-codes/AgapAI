@@ -33,7 +33,11 @@ const URGENCY_STYLE: Record<string, { color: string; bg: string; border: string 
 
 const STATUS_STYLE: Record<IncidentStatus, { color: string; border: string; bg: string }> = {
   PENDING: { color: '#fbbf24', border: 'rgba(245,158,11,0.2)', bg: 'rgba(245,158,11,0.05)' },
+  REVIEWING: { color: '#a78bfa', border: 'rgba(167,139,250,0.2)', bg: 'rgba(167,139,250,0.05)' },
+  PRIORITIZED: { color: '#f472b6', border: 'rgba(244,114,182,0.2)', bg: 'rgba(244,114,182,0.05)' },
   DISPATCHED: { color: '#60a5fa', border: 'rgba(96,165,250,0.2)', bg: 'rgba(96,165,250,0.05)' },
+  EN_ROUTE: { color: '#38bdf8', border: 'rgba(56,189,248,0.2)', bg: 'rgba(56,189,248,0.05)' },
+  ARRIVED: { color: '#818cf8', border: 'rgba(129,140,248,0.2)', bg: 'rgba(129,140,248,0.05)' },
   RESOLVED: { color: '#4ade80', border: 'rgba(34,197,94,0.2)', bg: 'rgba(34,197,94,0.05)' },
 };
 
@@ -352,33 +356,61 @@ export default function DispatcherDashboard() {
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #27272a' }}>
                       {inc.urgency_reason && <p style={{ fontSize: '11px', color: '#71717a', marginBottom: '10px', fontStyle: 'italic' }}><span style={{ color: urgency.color, fontWeight: 600 }}>AI:</span> {inc.urgency_reason}</p>}
 
-                      {/* Action buttons */}
-                      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                        {inc.status !== 'DISPATCHED' && inc.status !== 'RESOLVED' && (
+                      {/* Action buttons — status flow */}
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        {inc.status === 'PENDING' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'REVIEWING'); }}
+                            style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }}>
+                            Review
+                          </button>
+                        )}
+                        {inc.status === 'REVIEWING' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'PRIORITIZED'); }}
+                            style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(244,114,182,0.15)', color: '#f472b6' }}>
+                            Prioritize
+                          </button>
+                        )}
+                        {(inc.status === 'PRIORITIZED' || inc.status === 'REVIEWING' || inc.status === 'PENDING') && (
                           <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'DISPATCHED'); }}
-                            style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
+                            style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
                             Dispatch
+                          </button>
+                        )}
+                        {inc.status === 'DISPATCHED' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'EN_ROUTE'); }}
+                            style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(56,189,248,0.15)', color: '#38bdf8' }}>
+                            En Route
+                          </button>
+                        )}
+                        {inc.status === 'EN_ROUTE' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(inc.id, 'ARRIVED'); }}
+                            style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(129,140,248,0.15)', color: '#818cf8' }}>
+                            Arrived
                           </button>
                         )}
                         {inc.status !== 'RESOLVED' && (
                           <button onClick={(e) => { e.stopPropagation(); setShowResolve(true); }}
-                            style={{ flex: 1, padding: '8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
+                            style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', border: 'none', cursor: 'pointer', background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
                             Resolve
                           </button>
                         )}
+                      </div>
+
+                      {/* Utility buttons */}
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexWrap: 'wrap' }}>
                         {inc.status !== 'RESOLVED' && (
                           <button onClick={(e) => { e.stopPropagation(); setShowAssign(inc.id); }}
-                            style={{ padding: '8px', borderRadius: '6px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <UserPlus size={12} /> Assign
+                            style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '9px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <UserPlus size={11} /> Assign
                           </button>
                         )}
                         <button onClick={(e) => { e.stopPropagation(); loadHistory(inc.id); }}
-                          style={{ padding: '8px', borderRadius: '6px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <History size={12} /> History
+                          style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '9px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <History size={11} /> History
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); loadRelated(inc); }}
-                          style={{ padding: '8px', borderRadius: '6px', fontSize: '10px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Link2 size={12} /> Related
+                          style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '9px', border: '1px solid #27272a', cursor: 'pointer', background: 'rgba(24,24,27,0.6)', color: '#71717a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Link2 size={11} /> Related
                         </button>
                       </div>
 
@@ -413,9 +445,17 @@ export default function DispatcherDashboard() {
 
                       {/* First-aid info */}
                       {inc.condition && (
-                        <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', padding: '10px' }}>
+                        <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '6px', padding: '10px', marginBottom: '8px' }}>
                           <p style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', marginBottom: '4px' }}>FIRST-AID PROTOCOL</p>
                           <p style={{ fontSize: '11px', color: '#a1a1aa' }}>{getFirstAid(inc.condition + ' ' + inc.type).title}</p>
+                        </div>
+                      )}
+
+                      {/* Voice transcript */}
+                      {inc.transcript && (
+                        <div style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '6px', padding: '10px' }}>
+                          <p style={{ fontSize: '10px', fontWeight: 700, color: '#3b82f6', marginBottom: '6px' }}>VOICE REPORT</p>
+                          <p style={{ fontSize: '12px', color: '#d4d4d8', lineHeight: 1.6, fontStyle: 'italic' }}>&ldquo;{inc.transcript}&rdquo;</p>
                         </div>
                       )}
                     </div>

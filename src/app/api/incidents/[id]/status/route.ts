@@ -8,7 +8,7 @@ import type { IncidentStatus } from '@/types/incident';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_STATUSES: IncidentStatus[] = ['PENDING', 'DISPATCHED', 'RESOLVED'];
+const VALID_STATUSES: IncidentStatus[] = ['PENDING', 'REVIEWING', 'PRIORITIZED', 'DISPATCHED', 'EN_ROUTE', 'ARRIVED', 'RESOLVED'];
 
 // PATCH /api/incidents/:id/status
 export async function PATCH(

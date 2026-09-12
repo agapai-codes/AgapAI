@@ -75,6 +75,7 @@ export function rowToIncident(row: IncidentRow): Incident {
     resolution_notes: row.resolution_notes || undefined,
     dispatched_at: row.dispatched_at ? new Date(row.dispatched_at).toISOString() : undefined,
     resolved_at: row.resolved_at ? new Date(row.resolved_at).toISOString() : undefined,
+    transcript: row.transcript || undefined,
   };
 }
 
@@ -88,7 +89,7 @@ export async function getAllIncidents(): Promise<Incident[]> {
     SELECT i.id, i.type::text, i.location, i.description, i.status::text, i.reporter,
            i.created_at, ST_X(i.geom) AS lng, ST_Y(i.geom) AS lat,
            i.urgency, i.urgency_reason, i.people_affected, i.condition, i.hazards,
-           i.confidence, i.consciousness, i.breathing, i.bleeding,
+           i.confidence, i.consciousness, i.breathing, i.bleeding, i.transcript,
            i.assigned_responder_id, r.name AS assigned_responder_name,
            i.resolution_notes, i.dispatched_at, i.resolved_at
     FROM incidents i
@@ -113,7 +114,7 @@ export async function getIncidentById(id: string): Promise<Incident | null> {
     SELECT i.id, i.type::text, i.location, i.description, i.status::text, i.reporter,
            i.created_at, ST_X(i.geom) AS lng, ST_Y(i.geom) AS lat,
            i.urgency, i.urgency_reason, i.people_affected, i.condition, i.hazards,
-           i.confidence, i.consciousness, i.breathing, i.bleeding,
+           i.confidence, i.consciousness, i.breathing, i.bleeding, i.transcript,
            i.assigned_responder_id, r.name AS assigned_responder_name,
            i.resolution_notes, i.dispatched_at, i.resolved_at
     FROM incidents i

@@ -1,7 +1,7 @@
 // src/types/incident.ts
 
 export type IncidentType = 'FIRE' | 'ACCIDENT' | 'MEDICAL' | 'DISASTER' | 'VIOLENCE' | 'HAZARDOUS' | 'MISSING_PERSON';
-export type IncidentStatus = 'PENDING' | 'DISPATCHED' | 'RESOLVED';
+export type IncidentStatus = 'PENDING' | 'REVIEWING' | 'PRIORITIZED' | 'DISPATCHED' | 'EN_ROUTE' | 'ARRIVED' | 'RESOLVED';
 export type UrgencyLevel = 'critical' | 'high' | 'medium' | 'low';
 
 export interface Incident {
@@ -31,6 +31,7 @@ export interface Incident {
   resolution_notes?: string;
   dispatched_at?: string;
   resolved_at?: string;
+  transcript?: string;
 }
 
 export interface ApiResponse<T> {
