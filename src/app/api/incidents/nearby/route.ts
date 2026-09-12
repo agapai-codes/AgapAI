@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+      return NextResponse.json({ success: false, error: 'Coordinates out of range' }, { status: 400 });
+    }
 
     const clampedRadius = Math.min(Math.max(radius || 1000, 1), 50000);
     const incidents = await findNearbyIncidents(lng, lat, clampedRadius);

@@ -49,22 +49,6 @@ export function rowToIncident(row: IncidentRow): Incident {
 }
 
 // ==========================================
-// HEALTH CHECK
-// ==========================================
-
-export async function checkDatabaseHealth(): Promise<boolean> {
-  try {
-    const sql = getSql();
-    const result = (await sql`SELECT PostGIS_Version() as version`) as { version: string }[];
-    console.log(`[DB] PostGIS ready: ${result[0]?.version}`);
-    return true;
-  } catch (error) {
-    console.error('[DB] Health check failed:', error);
-    return false;
-  }
-}
-
-// ==========================================
 // QUERIES
 // ==========================================
 

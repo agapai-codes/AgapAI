@@ -1,5 +1,5 @@
 // scripts/run-migration.js
-// Runs every SQL file in supabase/migrations in filename order.
+// Runs every SQL file in db/migrations in filename order.
 
 const { Pool } = require('pg');
 const fs = require('fs');
@@ -12,7 +12,7 @@ async function run() {
     ssl: { rejectUnauthorized: false },
   });
 
-  const dir = path.join(__dirname, '../supabase/migrations');
+  const dir = path.join(__dirname, '../db/migrations');
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
 
   try {

@@ -15,5 +15,5 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
--- Note: user_roles table from migration 001 is left in place but unused now;
--- role lives directly on users.
+-- Note: the legacy user_roles table is dropped by migration 003.
+-- Role now lives directly on users.

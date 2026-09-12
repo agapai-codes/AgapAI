@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { email, password, name, role } = body ?? {};
+    const { email, password, name, role, inviteCode } = body ?? {};
 
     if (typeof email !== 'string' || !email.includes('@')) {
       return NextResponse.json({ success: false, error: 'A valid email is required' }, { status: 400 });
@@ -18,12 +18,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
-    const allowedRoles: Role[] = ['citizen', 'dispatcher'];
-    const safeRole: Role = allowedRoles.includes(role) ? role : 'citizen';
+    // Dispatcher signup requires the invite code. Anonymous users are citizens.
+    let safeRole: Role = 'citizen';
+    if (role === 'dispatcher') {
+      const expected = process.env.DISPATCHER_INVITE_CODE;
+      if (expected && typeof inviteCode === 'string' && inviteCode === expected) {
+        safeRole = 'dispatcher';
+      } else {
+        return NextResponse.json({ success: false, error: 'A valid dispatcher invite code is required' }, { status: 403 });
+      }
+    }
 
     const existing = await getUserByEmail(email);
     if (existing) {
-      return NextResponse.json({ success: false, error: 'An account with this email already exists' }, { status: 409 });
+      // Generic response to avoid confirming which emails are registered.
+      return NextResponse.json({ success: false, error: 'Unable to create an account with these details' }, { status: 400 });
     }
 
     const passwordHash = await hashPassword(password);

@@ -110,11 +110,14 @@ export function useIncidents() {
 
   const updateStatus = useCallback(async (id: string, status: IncidentStatus): Promise<Incident | null> => {
     const previous = incidents;
+    const optimistic: Incident | undefined = previous.find((i) => i.id === id);
     // Optimistic update
     setIncidents((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
 
-    // Local-only items never existed server-side; just keep the optimistic change.
-    if (id.startsWith('local-')) return null;
+    // Local-only items never existed server-side; keep the optimistic change.
+    if (id.startsWith('local-') || id.startsWith('seed-')) {
+      return optimistic ? { ...optimistic, status } : null;
+    }
 
     try {
       const res = await fetch(`/api/incidents/${id}/status`, {

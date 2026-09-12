@@ -19,7 +19,15 @@ export interface SessionUser {
 }
 
 function getSecret(): Uint8Array {
-  const secret = process.env.AUTH_SECRET || 'agapai-dev-secret-change-me';
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      // Fail closed: never sign/verify sessions with a known default in production.
+      throw new Error('AUTH_SECRET is not configured');
+    }
+    console.warn('[AUTH] AUTH_SECRET not set — using insecure dev secret');
+    return new TextEncoder().encode('agapai-dev-secret-change-me');
+  }
   return new TextEncoder().encode(secret);
 }
 

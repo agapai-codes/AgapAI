@@ -25,7 +25,7 @@ export async function GET() {
 // POST /api/incidents
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { type, location, description, reporter, coordinates } = body ?? {};
 
     if (!type || !VALID_TYPES.includes(type)) {

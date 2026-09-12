@@ -29,17 +29,7 @@ EXCEPTION
 END $$;
 
 -- ==========================================
--- 3. USER ROLES TABLE
--- ==========================================
-CREATE TABLE IF NOT EXISTS user_roles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  role user_role NOT NULL DEFAULT 'citizen',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ==========================================
--- 4. CORE INCIDENTS TABLE
+-- 3. CORE INCIDENTS TABLE
 -- ==========================================
 CREATE TABLE IF NOT EXISTS incidents (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

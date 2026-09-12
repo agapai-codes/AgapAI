@@ -23,6 +23,17 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
   return rows.length > 0 ? rows[0] : null;
 }
 
+export async function getUserById(id: string): Promise<UserRecord | null> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, email, password_hash, name, role::text AS role
+    FROM users
+    WHERE id = ${id}
+    LIMIT 1
+  `) as UserRecord[];
+  return rows.length > 0 ? rows[0] : null;
+}
+
 export async function createUser(
   email: string,
   passwordHash: string,

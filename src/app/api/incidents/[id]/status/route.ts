@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateIncidentStatus } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
+import { getUserById } from '@/lib/users';
 import type { IncidentStatus } from '@/types/incident';
 
 export const dynamic = 'force-dynamic';
@@ -26,15 +27,25 @@ export async function PATCH(
       );
     }
 
-    // Optional auth: attribute the change to the logged-in user if present.
-    // The dashboard is open for the demo, so this is not enforced.
+    // --- Authorization ---------------------------------------------------
+    // Secure by default: require a dispatcher/admin session.
+    // Only an explicit DEMO_OPEN_MUTATIONS=true opens this for the live demo.
+    const demoOpen = process.env.DEMO_OPEN_MUTATIONS === 'true';
     let changedBy = 'dispatcher (demo)';
-    try {
-      const user = await getSessionUser();
-      if (user?.email) changedBy = user.email;
-    } catch {
-      // ignore — leave demo attribution
+
+    const session = await getSessionUser().catch(() => null);
+    if (session) {
+      // Re-check role against the database (JWT role is not trusted blindly).
+      const dbUser = await getUserById(session.id).catch(() => null);
+      const role = dbUser?.role ?? session.role;
+      if (role !== 'dispatcher' && role !== 'admin') {
+        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+      }
+      changedBy = dbUser?.email ?? session.email;
+    } else if (!demoOpen) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
+    // ---------------------------------------------------------------------
 
     const updated = await updateIncidentStatus(id, status, changedBy);
 
