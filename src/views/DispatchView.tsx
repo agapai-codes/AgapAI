@@ -6,11 +6,18 @@ import { Toaster, toast } from 'sonner';
 import LiveMap from '../components/LiveMap';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
-import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity } from 'lucide-react';
+import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX } from 'lucide-react';
 import IncidentDrawer from '../components/IncidentDrawer';
 import type { Incident, IncidentStatus, UrgencyLevel } from '../types/incident';
 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'];
+const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
+  { label: 'ALL', value: null },
+  { label: 'CRITICAL', value: 'critical' },
+  { label: 'HIGH', value: 'high' },
+  { label: 'MEDIUM', value: 'medium' },
+  { label: 'LOW', value: 'low' },
+];
 
 interface Responder {
   id: string;
@@ -21,9 +28,10 @@ interface Responder {
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, assignResponder, resolveIncident, getResponders } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, assignResponder, resolveIncident, getResponders, getRelated, getHistory } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
+  const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
   const [activeIncident, setActiveIncident] = useState<Incident | null>(null);
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState('');
@@ -53,6 +61,8 @@ export default function DispatcherDashboard() {
     critical: incidents.filter(i => i.urgency === 'critical' && i.status !== 'RESOLVED').length,
     dispatched: incidents.filter(i => i.status === 'DISPATCHED').length,
     resolved: incidents.filter(i => i.status === 'RESOLVED').length,
+    awaitingReview: incidents.filter(i => i.status === 'PENDING' || i.status === 'REVIEWING').length,
+    unassigned: incidents.filter(i => !i.assigned_responder_id && i.status !== 'RESOLVED').length,
   }), [incidents]);
 
   const filtered = useMemo(() => {
@@ -64,7 +74,8 @@ export default function DispatcherDashboard() {
           (i.condition || '').toLowerCase().includes(search.toLowerCase()) ||
           (i.description || '').toLowerCase().includes(search.toLowerCase());
         const mt = selectedType === 'All' || i.type === selectedType;
-        return ms && mt;
+        const mu = selectedUrgency === null || (i.urgency || 'medium') === selectedUrgency;
+        return ms && mt && mu;
       })
       .sort((a, b) => {
         const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -73,7 +84,7 @@ export default function DispatcherDashboard() {
         if (ua !== ub) return ua - ub;
         return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       });
-  }, [incidents, search, selectedType]);
+  }, [incidents, search, selectedType, selectedUrgency]);
 
   const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
     const updated = await updateStatus(id, status);
@@ -85,8 +96,8 @@ export default function DispatcherDashboard() {
     }
   };
 
-  const handleUrgencyOverride = async (id: string, urgency: UrgencyLevel) => {
-    const updated = await updateUrgency(id, urgency, `Dispatcher override at ${new Date().toLocaleTimeString()}`);
+  const handleUrgencyOverride = async (id: string, urgency: UrgencyLevel, reason?: string) => {
+    const updated = await updateUrgency(id, urgency, reason || `Dispatcher override at ${new Date().toLocaleTimeString()}`);
     if (updated) {
       setActiveIncident(updated);
       toast.success(`Urgency updated to ${urgency}`);
@@ -154,11 +165,13 @@ export default function DispatcherDashboard() {
       </header>
 
       {/* ── METRICS RIBBON ── */}
-      <div className="w-full h-14 min-h-[56px] grid grid-cols-4 gap-3 px-4 bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 border-b border-zinc-800/60 z-20 items-center">
+      <div className="w-full h-14 min-h-[56px] grid grid-cols-6 gap-3 px-4 bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 border-b border-zinc-800/60 z-20 items-center">
         {[
           { label: 'TOTAL INCIDENTS', value: metrics.total, icon: Activity, color: '#f4f4f5' },
           { label: 'CRITICAL / HIGH', value: metrics.critical, icon: ShieldAlert, color: '#ef4444' },
           { label: 'UNITS DISPATCHED', value: metrics.dispatched, icon: AlertTriangle, color: '#60a5fa' },
+          { label: 'AWAITING REVIEW', value: metrics.awaitingReview, icon: Clock, color: '#fbbf24' },
+          { label: 'UNASSIGNED', value: metrics.unassigned, icon: UserX, color: '#f97316' },
           { label: 'CASES RESOLVED', value: metrics.resolved, icon: CheckCircle2, color: '#22c55e' },
         ].map(m => (
           <div key={m.label} className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/50 rounded-lg px-3 py-2 flex items-center justify-between">
@@ -207,6 +220,22 @@ export default function DispatcherDashboard() {
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_URGENCIES.map(u => (
+                <button key={u.label} onClick={() => setSelectedUrgency(u.value)}
+                  type="button"
+                  aria-pressed={selectedUrgency === u.value}
+                  className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
+                  style={{
+                    background: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(13,15,18,0.8)',
+                    color: selectedUrgency === u.value ? '#09090b' : '#71717a',
+                    borderColor: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(63,63,70,0.3)',
+                    backdropFilter: 'blur(12px)',
+                  }}>
+                  {u.label}
+                </button>
+              ))}
+            </div>
             {error && <p className="text-[10px] text-red-400/80 bg-[#0d0f12]/80 backdrop-blur-xl px-2 py-1 rounded-md">{error}</p>}
           </div>
         </main>
@@ -222,6 +251,8 @@ export default function DispatcherDashboard() {
             onUrgencyOverride={handleUrgencyOverride}
             onAssign={handleAssign}
             onResolve={handleResolve}
+            getRelated={getRelated}
+            getHistory={getHistory}
           />
         )}
       </div>

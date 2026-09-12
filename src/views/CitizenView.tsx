@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
-import { Zap, Mic, Bot, ArrowRight, RotateCcw, ChevronRight, X, Send, CheckCircle2, MapPin, Users, AlertTriangle } from 'lucide-react';
+import { Zap, Mic, Bot, ArrowRight, RotateCcw, ChevronRight, X, Send, CheckCircle2, MapPin } from 'lucide-react';
 import { useIncidents } from '../hooks/useIncidents';
 import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
 import { useAuth } from '../hooks/useAuth';
+import VoiceRecorder from '../components/VoiceRecorder';
 import type { IncidentType, UrgencyLevel } from '../types/incident';
 
 interface Submission {
@@ -45,62 +46,13 @@ export default function CitizenView() {
   const [currentTime, setCurrentTime] = useState('');
   const [gpsCoords, setGpsCoords] = useState<{ lng: number; lat: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-
-  // Web Speech API
   const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     setMounted(true);
     setCurrentTime(new Date().toLocaleTimeString());
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(timer);
-  }, []);
-
-  // Initialize Speech Recognition
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.maxAlternatives = 1;
-
-    let finalTranscript = '';
-
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += t + ' ';
-          setTranscript(finalTranscript.trim());
-        } else {
-          interim += t;
-        }
-      }
-      setInterimTranscript(finalTranscript + interim);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.warn('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        toast.error('Microphone access denied');
-      }
-    };
-
-    recognition.onend = () => {
-      // Auto-restart if still recording
-      if (recognitionRef.current?._shouldRecord) {
-        try { recognition.start(); } catch {}
-      }
-    };
-
-    recognitionRef.current = recognition;
-    return () => { recognition.abort(); };
   }, []);
 
   // GPS acquisition
@@ -129,30 +81,6 @@ export default function CitizenView() {
     });
   }, []);
 
-  // Start/Stop recording
-  const toggleRecording = useCallback(async () => {
-    if (!recognitionRef.current) {
-      toast.error('Speech recognition not supported in this browser');
-      return;
-    }
-
-    if (isRecording) {
-      recognitionRef.current._shouldRecord = false;
-      recognitionRef.current.stop();
-      setIsRecording(false);
-      setInterimTranscript('');
-    } else {
-      // Acquire GPS first
-      await acquireGPS();
-      recognitionRef.current._shouldRecord = true;
-      recognitionRef.current.start();
-      setIsRecording(true);
-      setTranscript('');
-      setInterimTranscript('');
-      toast.info('Listening... Describe your emergency');
-    }
-  }, [isRecording, acquireGPS]);
-
   // SOS handler — captures GPS + sends beacon
   const handleSOS = useCallback(async () => {
     const coords = await acquireGPS();
@@ -175,10 +103,6 @@ export default function CitizenView() {
     setIsProcessing(true);
     setShowVoiceModal(false);
     setIsRecording(false);
-    if (recognitionRef.current) {
-      recognitionRef.current._shouldRecord = false;
-      try { recognitionRef.current.stop(); } catch {}
-    }
 
     const coords = gpsCoords || await acquireGPS();
 
@@ -228,6 +152,18 @@ export default function CitizenView() {
 
   const handleVoiceSubmit = useCallback(() => processText(transcript), [transcript, processText]);
 
+  const handleToggleRecording = useCallback(async () => {
+    if (!isRecording) {
+      await acquireGPS();
+    }
+    setIsRecording(prev => !prev);
+  }, [isRecording, acquireGPS]);
+
+  const handleVoiceModalClose = useCallback(() => {
+    setShowVoiceModal(false);
+    setIsRecording(false);
+  }, []);
+
   const handleChatSubmit = useCallback(() => {
     if (!chatInput.trim()) return;
     const userMsg = chatInput.trim();
@@ -261,27 +197,33 @@ export default function CitizenView() {
   // ─── REPORT SUBMITTED VIEW ────────────────────────────────────────
   if (reportSubmitted && submission) {
     return (
-      <div style={{ minHeight: '100vh', background: '#09090b', color: '#fafafa', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <header style={{ height: '64px', borderBottom: '1px solid rgba(39,39,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: 'rgba(9,9,11,0.8)', backdropFilter: 'blur(12px)', position: 'relative', zIndex: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} style={{ borderRadius: '8px' }} />
-            <span style={{ fontWeight: 700, fontSize: '18px', color: '#fafafa' }}>Agap<span style={{ color: '#ef4444' }}>AI</span></span>
+      <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex flex-col justify-between">
+        <header className="h-16 border-b border-zinc-800/60 flex items-center justify-between px-6 bg-[#09090b]/80 backdrop-blur-xl relative z-20">
+          <div className="flex items-center gap-3">
+            <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
+            <span className="font-bold text-lg text-[#fafafa]">Agap<span className="text-[#ef4444]">AI</span></span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ position: 'relative', display: 'inline-flex', height: '8px', width: '8px' }}><span style={{ position: 'absolute', display: 'inline-flex', height: '100%', width: '100%', borderRadius: '50%', background: '#4ade80', opacity: 0.75 }} /><span style={{ position: 'relative', display: 'inline-flex', borderRadius: '50%', height: '8px', width: '8px', background: '#22c55e' }} /></span>
-            <span style={{ color: '#22c55e', fontSize: '12px', fontWeight: 600 }}>ONLINE</span>
+          <div className="flex items-center gap-2">
+            <span className="relative inline-flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-[#4ade80] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22c55e]" />
+            </span>
+            <span className="text-[#22c55e] text-xs font-semibold">ONLINE</span>
           </div>
         </header>
-        <div style={{ maxWidth: '512px', margin: '0 auto', padding: '64px 24px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 30px rgba(34,197,94,0.15)' }}><CheckCircle2 style={{ width: '32px', height: '32px', color: '#22c55e' }} /></div>
-            <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fafafa', marginBottom: '8px' }}>Report Submitted</h1>
-            <p style={{ color: '#a1a1aa' }}>Emergency services have been notified</p>
+
+        <div className="max-w-md mx-auto py-16 px-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 rounded-full bg-[#22c55e]/10 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.15)]">
+              <CheckCircle2 className="w-8 h-8 text-[#22c55e]" />
+            </div>
+            <h1 className="text-2xl font-bold text-[#fafafa] mb-2">Report Submitted</h1>
+            <p className="text-[#a1a1aa]">Emergency services have been notified</p>
           </div>
 
           {/* Structured Report Card */}
-          <div style={{ background: 'rgba(24,24,27,0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(39,39,42,0.4)', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="bg-[#18181b]/60 backdrop-blur-xl border border-zinc-800/40 shadow-2xl rounded-xl p-6 mb-6">
+            <div className="grid grid-cols-2 gap-3">
               {[
                 { l: 'TYPE', v: submission.incident_type.replace('_', ' ') },
                 { l: 'URGENCY', v: submission.urgency.toUpperCase(), c: urgencyColor(submission.urgency) },
@@ -290,54 +232,56 @@ export default function CitizenView() {
                 { l: 'LOCATION', v: submission.location_description },
                 { l: 'GPS', v: submission.gps ? `${submission.gps.lat.toFixed(4)}, ${submission.gps.lng.toFixed(4)}` : 'N/A' },
               ].map(i => (
-                <div key={i.l} style={{ background: 'rgba(9,9,11,0.8)', borderRadius: '8px', padding: '12px', border: '1px solid rgba(39,39,42,0.6)' }}>
-                  <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: '#71717a', textTransform: 'uppercase', marginBottom: '4px' }}>{i.l}</p>
-                  <p style={{ fontWeight: 500, color: (i as any).c || '#fafafa', textTransform: 'capitalize', fontSize: '13px' }}>{i.v}</p>
+                <div key={i.l} className="bg-[#09090b]/80 rounded-lg p-3 border border-zinc-800/60">
+                  <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-1">{i.l}</p>
+                  <p className="font-medium text-[#fafafa] capitalize text-[13px]" style={{ color: (i as any).c || undefined }}>{i.v}</p>
                 </div>
               ))}
             </div>
             {submission.hazards.length > 0 && (
-              <div style={{ marginTop: '12px' }}>
-                <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: '#71717a', textTransform: 'uppercase', marginBottom: '6px' }}>HAZARDS</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              <div className="mt-3">
+                <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-1.5">HAZARDS</p>
+                <div className="flex flex-wrap gap-1.5">
                   {submission.hazards.map((h, i) => (
-                    <span key={i} style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '9999px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>{h.toUpperCase()}</span>
+                    <span key={i} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20">{h.toUpperCase()}</span>
                   ))}
                 </div>
               </div>
             )}
-            <p style={{ marginTop: '12px', fontSize: '12px', color: '#71717a', fontStyle: 'italic' }}>{submission.urgency_reason}</p>
+            <p className="mt-3 text-xs text-[#71717a] italic">{submission.urgency_reason}</p>
           </div>
 
-          {/* First-Aid Guidance — Red Cross Sourced */}
+          {/* First-Aid Guidance */}
           {firstAidProtocol && (
-            <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: '16px' }}>🏥</span></div>
+            <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-xl p-6 mb-6">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-[#10b981]/15 flex items-center justify-center">
+                  <span className="text-base">🏥</span>
+                </div>
                 <div>
-                  <h3 style={{ color: '#10b981', fontWeight: 700, fontSize: '14px' }}>FIRST-AID: {firstAidProtocol.title.toUpperCase()}</h3>
-                  <p style={{ color: '#6b7280', fontSize: '10px', fontFamily: 'monospace' }}>{firstAidProtocol.source}</p>
+                  <h3 className="text-[#10b981] font-bold text-sm">FIRST-AID: {firstAidProtocol.title.toUpperCase()}</h3>
+                  <p className="text-[#6b7280] text-[10px] font-mono">{firstAidProtocol.source}</p>
                 </div>
               </div>
-              <ol style={{ margin: '0 0 12px 0', padding: '0 0 0 20px', listStyleType: 'decimal' }}>
+              <ol className="m-0 mb-3 pl-5 list-decimal">
                 {firstAidProtocol.steps.map((step, i) => (
-                  <li key={i} style={{ color: '#d4d4d8', fontSize: '13px', lineHeight: 1.6, marginBottom: '6px' }}>{step}</li>
+                  <li key={i} className="text-[#d4d4d8] text-[13px] leading-relaxed mb-1.5">{step}</li>
                 ))}
               </ol>
               {firstAidProtocol.warnings.length > 0 && (
-                <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '8px', padding: '12px' }}>
-                  <p style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444', marginBottom: '6px' }}>⚠ WARNINGS</p>
+                <div className="bg-[#ef4444]/5 border border-[#ef4444]/15 rounded-lg p-3">
+                  <p className="text-[11px] font-bold text-[#ef4444] mb-1.5">⚠ WARNINGS</p>
                   {firstAidProtocol.warnings.map((w, i) => (
-                    <p key={i} style={{ fontSize: '12px', color: '#a1a1aa', lineHeight: 1.5 }}>• {w}</p>
+                    <p key={i} className="text-xs text-[#a1a1aa] leading-relaxed">• {w}</p>
                   ))}
                 </div>
               )}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <a href="/dispatcher" style={{ flex: 1 }}><button style={{ width: '100%', background: '#fafafa', color: '#09090b', height: '48px', fontWeight: 500, borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Dispatcher Dashboard <ArrowRight size={16} /></button></a>
-            <button onClick={handleReset} style={{ height: '48px', border: '1px solid #3f3f46', color: '#d4d4d8', borderRadius: '8px', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px' }}><RotateCcw size={16} /> New</button>
+          <div className="flex gap-3">
+            <a href="/dispatcher" className="flex-1"><button className="w-full bg-[#fafafa] text-[#09090b] h-12 font-medium rounded-lg border-none cursor-pointer text-sm flex items-center justify-center gap-2">Dispatcher Dashboard <ArrowRight size={16} /></button></a>
+            <button onClick={handleReset} className="h-12 border border-[#3f3f46] text-[#d4d4d8] rounded-lg bg-transparent cursor-pointer flex items-center gap-2 px-4"><RotateCcw size={16} /> New</button>
           </div>
         </div>
       </div>
@@ -346,101 +290,101 @@ export default function CitizenView() {
 
   // ─── MAIN LANDING VIEW ────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#09090b', color: '#fafafa', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflowX: 'hidden' }}>
+    <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex flex-col justify-between relative overflow-x-hidden">
       <Toaster position="top-center" theme="dark" />
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, rgba(220,38,38,0.12) 0%, rgba(9,9,11,0) 50%)', pointerEvents: 'none', zIndex: 0 }} />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.12)_0%,rgba(9,9,11,0)_50%)] pointer-events-none z-0" />
 
-      <header style={{ height: '64px', borderBottom: '1px solid rgba(39,39,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: 'rgba(9,9,11,0.8)', backdropFilter: 'blur(12px)', position: 'relative', zIndex: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} style={{ borderRadius: '8px' }} />
-          <span style={{ fontWeight: 700, fontSize: '18px', color: '#fafafa' }}>Agap<span style={{ color: '#ef4444' }}>AI</span></span>
+      <header className="h-16 border-b border-zinc-800/60 flex items-center justify-between px-6 bg-[#09090b]/80 backdrop-blur-xl relative z-20">
+        <div className="flex items-center gap-3">
+          <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
+          <span className="font-bold text-lg text-[#fafafa]">Agap<span className="text-[#ef4444]">AI</span></span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ position: 'relative', display: 'inline-flex', height: '8px', width: '8px' }}><span style={{ position: 'absolute', display: 'inline-flex', height: '100%', width: '100%', borderRadius: '50%', background: '#4ade80', opacity: 0.75 }} /><span style={{ position: 'relative', display: 'inline-flex', borderRadius: '50%', height: '8px', width: '8px', background: '#22c55e' }} /></span>
-            <span style={{ color: '#22c55e', fontSize: '12px', fontWeight: 600 }}>ONLINE</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="relative inline-flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-[#4ade80] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22c55e]" />
+            </span>
+            <span className="text-[#22c55e] text-xs font-semibold">ONLINE</span>
           </div>
-          {mounted && <span style={{ color: '#71717a', fontSize: '14px', fontFamily: 'monospace' }}>{currentTime}</span>}
+          {mounted && <span className="text-[#71717a] text-sm font-mono">{currentTime}</span>}
         </div>
       </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', width: '100%', maxWidth: '640px', margin: '0 auto', padding: '0 16px', position: 'relative', zIndex: 20 }}>
-        <div style={{ marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '48px', fontWeight: 700, color: '#fafafa', marginBottom: '12px', letterSpacing: '-0.02em' }}>Agap<span style={{ color: '#ef4444' }}>AI</span></h1>
-          <p style={{ color: '#a1a1aa', fontSize: '18px' }}>Emergency Response Command Center</p>
-          <p style={{ color: '#52525b', fontSize: '14px', marginTop: '8px' }}>IEEE SumpAI 2026 — MSU-IIT</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center w-full max-w-xl mx-auto px-4 relative z-20">
+        <div className="mb-10">
+          <h1 className="text-5xl font-bold text-[#fafafa] mb-3 tracking-tight">Agap<span className="text-[#ef4444]">AI</span></h1>
+          <p className="text-[#a1a1aa] text-lg">Emergency Response Command Center</p>
+          <p className="text-[#52525b] text-sm mt-2">IEEE SumpAI 2026 — MSU-IIT</p>
         </div>
 
         {/* SOS Button */}
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '24px 0' }}>
-          <div style={{ position: 'absolute', width: '224px', height: '224px', borderRadius: '50%', border: '1px solid rgba(239,68,68,0.1)', animation: 'ping 4s cubic-bezier(0, 0, 0.2, 1) infinite', zIndex: 10 }} />
-          <div style={{ position: 'absolute', width: '192px', height: '192px', borderRadius: '50%', border: '1px solid rgba(239,68,68,0.3)', animation: 'ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite', zIndex: 10 }} />
+        <div className="relative flex flex-col items-center justify-center my-6">
+          <div className="absolute w-56 h-56 rounded-full border border-[#ef4444]/10 animate-ping" style={{ animationDuration: '4s' }} />
+          <div className="absolute w-48 h-48 rounded-full border border-[#ef4444]/30 animate-ping" style={{ animationDuration: '2.5s' }} />
           <button
             onClick={handleSOS}
             aria-label="Emergency SOS - Tap to activate emergency beacon"
-            style={{ position: 'relative', width: '144px', height: '144px', borderRadius: '50%', background: 'linear-gradient(to bottom, #ef4444, #dc2626)', color: '#fafafa', fontSize: '24px', fontWeight: 900, letterSpacing: '0.1em', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 40px rgba(239,68,68,0.3)', zIndex: 30, transition: 'transform 0.15s' }}
-            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
-            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            className="relative w-36 h-36 rounded-full bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-[#fafafa] text-2xl font-black tracking-widest border-none cursor-pointer flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.3)] z-30 transition-transform active:scale-95"
           >
             SOS
           </button>
         </div>
 
-        <p style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', color: '#a1a1aa', marginTop: '24px' }}>
+        <p className="text-sm font-semibold tracking-wide text-[#a1a1aa] mt-6">
           {isRecording ? 'Listening... Speak now' : 'Tap SOS for instant beacon, or use Voice Report below'}
         </p>
 
         {/* GPS Status */}
         {gpsStatus !== 'idle' && (
-          <p style={{ fontSize: '11px', color: gpsStatus === 'ready' ? '#22c55e' : gpsStatus === 'loading' ? '#eab308' : '#f87171', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <p className={`text-[11px] mt-1 flex items-center gap-1 ${gpsStatus === 'ready' ? 'text-[#22c55e]' : gpsStatus === 'loading' ? 'text-[#eab308]' : 'text-[#f87171]'}`}>
             <MapPin size={12} />
             {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'GPS unavailable — using default location'}
           </p>
         )}
 
         {!transcript && !isRecording && (
-          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="mt-4 flex flex-col items-center">
             <button
               onClick={handleTryDemo}
-              style={{ padding: '8px 16px', background: 'rgba(24,24,27,0.4)', border: '1px solid rgba(39,39,42,0.8)', color: '#71717a', borderRadius: '9999px', fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', backdropFilter: 'blur(12px)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', transition: 'all 0.2s' }}
+              className="px-4 py-2 bg-zinc-900/40 border border-zinc-800/80 text-[#71717a] rounded-full text-xs font-semibold tracking-widest uppercase backdrop-blur-xl cursor-pointer flex items-center gap-1.5 shadow-md transition-all hover:bg-zinc-800/40"
             >
               <ChevronRight size={14} /> Launch Simulator
             </button>
-            <p style={{ fontSize: '11px', color: '#3f3f46', marginTop: '8px', fontWeight: 300 }}>Pre-filled emergency report for demonstration</p>
+            <p className="text-[11px] text-[#3f3f46] mt-2 font-light">Pre-filled emergency report for demonstration</p>
           </div>
         )}
 
         {/* Transcript display */}
         {transcript && (
-          <div style={{ width: '100%', maxWidth: '512px', marginTop: '24px' }}>
-            <div style={{ background: 'rgba(24,24,27,0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(39,39,42,0.4)', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', borderRadius: '12px', padding: '16px' }}>
-              <p style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: '#71717a', textTransform: 'uppercase', marginBottom: '8px' }}>Transcript</p>
-              <p style={{ color: '#d4d4d8', fontSize: '14px', lineHeight: 1.6 }}>{transcript}</p>
+          <div className="w-full max-w-md mt-6">
+            <div className="bg-[#18181b]/60 backdrop-blur-xl border border-zinc-800/40 shadow-2xl rounded-xl p-4">
+              <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-2">Transcript</p>
+              <p className="text-[#d4d4d8] text-sm leading-relaxed">{transcript}</p>
               {interimTranscript && (
-                <p style={{ color: '#52525b', fontSize: '13px', lineHeight: 1.6, marginTop: '4px', fontStyle: 'italic' }}>{interimTranscript.replace(transcript, '')}</p>
+                <p className="text-[#52525b] text-[13px] leading-relaxed mt-1 italic">{interimTranscript.replace(transcript, '')}</p>
               )}
             </div>
           </div>
         )}
 
         {transcript && !isProcessing && (
-          <button onClick={handleVoiceSubmit} style={{ marginTop: '24px', padding: '12px 32px', background: '#fafafa', color: '#09090b', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}>
+          <button onClick={handleVoiceSubmit} className="mt-6 px-8 py-3 bg-[#fafafa] text-[#09090b] font-semibold rounded-lg border-none cursor-pointer flex items-center gap-2 shadow-lg">
             <Bot size={16} /> Submit Report
           </button>
         )}
 
         {isProcessing && (
-          <div style={{ marginTop: '24px', display: 'flex', alignItems: 'center', gap: '12px', color: '#a1a1aa' }}>
-            <div style={{ width: '20px', height: '20px', border: '2px solid #52525b', borderTopColor: '#fafafa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: '14px' }}>Processing report with AI...</span>
+          <div className="mt-6 flex items-center gap-3 text-[#a1a1aa]">
+            <div className="w-5 h-5 border-2 border-[#52525b] border-t-[#fafafa] rounded-full animate-spin" />
+            <span className="text-sm">Processing report with AI...</span>
           </div>
         )}
       </div>
 
       {/* Feature cards */}
       {!transcript && !isRecording && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', width: '100%', maxWidth: '960px', margin: '0 auto', padding: '0 24px 48px', position: 'relative', zIndex: 20 }}>
+        <div className="grid grid-cols-3 gap-6 w-full max-w-3xl mx-auto px-6 pb-12 relative z-20">
           {[
             { icon: <Zap size={20} />, title: 'Tap SOS', desc: 'Instant emergency activation with one touch', status: 'READY', color: '#ef4444', onClick: handleSOS },
             { icon: <Mic size={20} />, title: 'Voice Report', desc: 'Speak naturally — AI converts your words into a structured report', status: 'READY', color: '#3b82f6', onClick: () => setShowVoiceModal(true) },
@@ -448,50 +392,39 @@ export default function CitizenView() {
           ].map((f) => (
             <div key={f.title} onClick={f.onClick} role="button" tabIndex={0} aria-label={f.title}
               onKeyDown={e => e.key === 'Enter' && f.onClick()}
-              style={{ background: 'rgba(24,24,27,0.6)', border: '1px solid rgba(39,39,42,0.4)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '130px', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}>
-              <span style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#4ade80', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: '9999px', border: '1px solid rgba(34,197,94,0.2)' }}>{f.status}</span>
+              className="bg-[#18181b]/60 border border-zinc-800/40 rounded-xl p-5 flex flex-col justify-between min-h-[130px] text-left cursor-pointer transition-all relative hover:border-zinc-700/40">
+              <span className="absolute top-4 right-4 text-[10px] font-bold tracking-widest uppercase text-[#4ade80] bg-[#22c55e]/10 px-2 py-0.5 rounded-full border border-[#22c55e]/20">{f.status}</span>
               <div>
-                <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(39,39,42,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: f.color }}>{f.icon}</div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f4f4f5', marginBottom: '4px' }}>{f.title}</h3>
-                <p style={{ fontSize: '12px', color: '#a1a1aa', lineHeight: 1.5, margin: 0 }}>{f.desc}</p>
+                <div className="w-10 h-10 rounded-lg bg-zinc-800/80 flex items-center justify-center mb-4" style={{ color: f.color }}>{f.icon}</div>
+                <h3 className="text-base font-bold text-[#f4f4f5] mb-1">{f.title}</h3>
+                <p className="text-xs text-[#a1a1aa] leading-relaxed m-0">{f.desc}</p>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* VOICE MODAL — with real speech-to-text */}
+      {/* VOICE MODAL — using VoiceRecorder component */}
       {showVoiceModal && (
         <div role="dialog" aria-modal="true" aria-label="Voice Report"
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setShowVoiceModal(false)}>
-          <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fafafa' }}>Voice Report</h2>
-              <button onClick={() => { setShowVoiceModal(false); if (isRecording) { setIsRecording(false); if (recognitionRef.current) { recognitionRef.current._shouldRecord = false; try { recognitionRef.current.stop(); } catch {} } } }} style={{ color: '#71717a', cursor: 'pointer', background: 'none', border: 'none' }} aria-label="Close"><X size={20} /></button>
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={handleVoiceModalClose}>
+          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-[#fafafa]">Voice Report</h2>
+              <button onClick={handleVoiceModalClose} className="text-[#71717a] cursor-pointer bg-transparent border-none" aria-label="Close"><X size={20} /></button>
             </div>
 
-            {/* Recording indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '80px', marginBottom: '16px', background: '#09090b', borderRadius: '12px', padding: '16px', border: isRecording ? '1px solid rgba(239,68,68,0.3)' : '1px solid #27272a' }}>
-              {isRecording ? (
-                <>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s ease-in-out infinite' }} />
-                  <span style={{ color: '#ef4444', fontSize: '14px', fontWeight: 600 }}>RECORDING</span>
-                </>
-              ) : (
-                <Mic size={32} style={{ color: '#52525b' }} />
-              )}
-            </div>
+            {/* VoiceRecorder component handles speech recognition */}
+            <VoiceRecorder
+              isRecording={isRecording}
+              onTranscript={setTranscript}
+              onInterimTranscript={setInterimTranscript}
+              onStop={() => setIsRecording(false)}
+            />
 
-            <p style={{ textAlign: 'center', color: '#a1a1aa', fontSize: '14px', marginBottom: '16px' }}>
+            <p className="text-center text-[#a1a1aa] text-sm mb-4">
               {isRecording ? 'Listening... Describe your emergency clearly' : 'Tap Start to begin recording, or type below'}
             </p>
-
-            {/* Interim transcript display */}
-            {isRecording && interimTranscript && (
-              <div style={{ background: '#09090b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px', marginBottom: '16px', maxHeight: '80px', overflowY: 'auto' }}>
-                <p style={{ color: '#a1a1aa', fontSize: '13px', lineHeight: 1.5, fontStyle: 'italic' }}>{interimTranscript}</p>
-              </div>
-            )}
 
             {/* Manual textarea fallback */}
             <textarea
@@ -499,15 +432,15 @@ export default function CitizenView() {
               onChange={e => setTranscript(e.target.value)}
               placeholder="Or type your emergency description here..."
               rows={3}
-              style={{ width: '100%', background: '#09090b', border: '1px solid #27272a', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', color: '#fafafa', outline: 'none', resize: 'vertical', marginBottom: '16px' }}
+              className="w-full bg-[#09090b] border border-[#27272a] rounded-lg p-4 text-sm text-[#fafafa] outline-none resize-y mb-4"
               aria-label="Emergency description"
             />
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={toggleRecording} style={{ flex: 1, padding: '12px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', border: 'none', cursor: 'pointer', background: isRecording ? '#dc2626' : '#27272a', color: isRecording ? '#fff' : '#d4d4d8', transition: 'all 0.2s' }}>
-                <Mic size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} /> {isRecording ? 'Stop' : 'Start'}
+            <div className="flex gap-3">
+              <button onClick={handleToggleRecording} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none cursor-pointer transition-all" style={{ background: isRecording ? '#dc2626' : '#27272a', color: isRecording ? '#fff' : '#d4d4d8' }}>
+                <Mic size={16} className="inline mr-2 align-middle" /> {isRecording ? 'Stop' : 'Start'}
               </button>
-              <button onClick={() => { setShowVoiceModal(false); handleVoiceSubmit(); }} disabled={!transcript.trim()} style={{ flex: 1, padding: '12px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', border: 'none', cursor: transcript.trim() ? 'pointer' : 'not-allowed', background: transcript.trim() ? '#fafafa' : '#27272a', color: transcript.trim() ? '#09090b' : '#52525b', transition: 'all 0.2s' }}>
-                <Send size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} /> Submit
+              <button onClick={() => { handleVoiceModalClose(); handleVoiceSubmit(); }} disabled={!transcript.trim()} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none transition-all" style={{ cursor: transcript.trim() ? 'pointer' : 'not-allowed', background: transcript.trim() ? '#fafafa' : '#27272a', color: transcript.trim() ? '#09090b' : '#52525b' }}>
+                <Send size={16} className="inline mr-2 align-middle" /> Submit
               </button>
             </div>
           </div>
@@ -517,37 +450,37 @@ export default function CitizenView() {
       {/* AI TRIAGE SIDEBAR */}
       {showChatSidebar && (
         <div role="complementary" aria-label="AI Triage Assistant"
-          style={{ position: 'fixed', top: 0, bottom: 0, right: 0, width: '100%', maxWidth: '400px', background: '#18181b', borderLeft: '1px solid #27272a', zIndex: 50, display: 'flex', flexDirection: 'column', boxShadow: '-25px 0 50px rgba(0,0,0,0.5)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid #27272a' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fafafa' }}>AI First-Aid Triage</h2>
-            <button onClick={() => setShowChatSidebar(false)} style={{ color: '#71717a', cursor: 'pointer', background: 'none', border: 'none' }} aria-label="Close"><X size={20} /></button>
+          className="fixed top-0 bottom-0 right-0 w-full max-w-md bg-[#18181b] border-l border-[#27272a] z-50 flex flex-col shadow-[-25px_0_50px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center justify-between p-4 border-b border-[#27272a]">
+            <h2 className="text-lg font-bold text-[#fafafa]">AI First-Aid Triage</h2>
+            <button onClick={() => setShowChatSidebar(false)} className="text-[#71717a] cursor-pointer bg-transparent border-none" aria-label="Close"><X size={20} /></button>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+          <div className="flex-1 overflow-y-auto p-4">
             {chatMessages.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#71717a', padding: '32px 0' }}>
-                <Bot size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-                <p style={{ fontSize: '14px' }}>Describe symptoms or an emergency</p>
-                <p style={{ fontSize: '11px', marginTop: '4px', color: '#52525b' }}>Based on Red Cross first-aid protocols</p>
+              <div className="text-center text-[#71717a] py-8">
+                <Bot size={32} className="mx-auto mb-3 opacity-50" />
+                <p className="text-sm">Describe symptoms or an emergency</p>
+                <p className="text-[11px] mt-1 text-[#52525b]">Based on Red Cross first-aid protocols</p>
               </div>
             )}
             {chatMessages.map((msg, i) => (
-              <div key={i} style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '4px' }}>
-                  <div style={{ maxWidth: '80%', padding: '12px', borderRadius: '12px', background: msg.role === 'user' ? '#dc2626' : '#27272a', color: msg.role === 'user' ? '#fff' : '#d4d4d8' }}>
-                    <p style={{ fontSize: '14px', margin: 0, whiteSpace: 'pre-line' }}>{msg.text}</p>
+              <div key={i} className="mb-4">
+                <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-1`}>
+                  <div className="max-w-[80%] p-3 rounded-xl" style={{ background: msg.role === 'user' ? '#dc2626' : '#27272a', color: msg.role === 'user' ? '#fff' : '#d4d4d8' }}>
+                    <p className="text-sm m-0 whitespace-pre-line">{msg.text}</p>
                   </div>
                 </div>
                 {msg.protocol && (
-                  <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '12px', marginTop: '8px' }}>
-                    <p style={{ fontSize: '10px', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Protocol: {msg.protocol.title}</p>
-                    <p style={{ fontSize: '10px', color: '#6b7280', fontFamily: 'monospace' }}>{msg.protocol.source}</p>
+                  <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-lg p-3 mt-2">
+                    <p className="text-[10px] font-bold text-[#10b981] uppercase tracking-widest mb-1">Protocol: {msg.protocol.title}</p>
+                    <p className="text-[10px] text-[#6b7280] font-mono">{msg.protocol.source}</p>
                   </div>
                 )}
               </div>
             ))}
           </div>
-          <div style={{ padding: '16px', borderTop: '1px solid #27272a' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="p-4 border-t border-[#27272a]">
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={chatInput}
@@ -555,9 +488,9 @@ export default function CitizenView() {
                 onKeyDown={e => e.key === 'Enter' && handleChatSubmit()}
                 placeholder="Describe symptoms..."
                 aria-label="Symptom description"
-                style={{ flex: 1, background: '#27272a', border: '1px solid #3f3f46', borderRadius: '8px', padding: '10px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }}
+                className="flex-1 bg-[#27272a] border border-[#3f3f46] rounded-lg p-2.5 px-4 text-sm text-[#fafafa] outline-none"
               />
-              <button onClick={handleChatSubmit} style={{ padding: '10px 16px', background: '#dc2626', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer' }} aria-label="Send">
+              <button onClick={handleChatSubmit} className="p-2.5 px-4 bg-[#dc2626] text-white rounded-lg border-none cursor-pointer" aria-label="Send">
                 <Send size={16} />
               </button>
             </div>

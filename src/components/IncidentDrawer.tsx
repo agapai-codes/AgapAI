@@ -3,9 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   X, AlertTriangle, Zap, MapPin, Users, Clock, Sparkles,
-  Brain, Wind, Droplets, Radio, Navigation, ShieldAlert, FileText
+  Brain, Wind, Droplets, Radio, Navigation, ShieldAlert, FileText,
+  ChevronDown, ChevronRight, History, Link2
 } from 'lucide-react';
 import type { Incident, UrgencyLevel, IncidentStatus } from '../types/incident';
+
+type HistoryEntry = {
+  id: string;
+  old_status: string | null;
+  new_status: string;
+  changed_by: string | null;
+  notes: string | null;
+  created_at: string;
+};
 
 const URGENCY_STYLE: Record<string, { color: string; bg: string; border: string }> = {
   critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.4)' },
@@ -39,9 +49,11 @@ interface IncidentDrawerProps {
   responders: { id: string; name: string; status: string }[];
   onClose: () => void;
   onStatusUpdate: (id: string, status: IncidentStatus) => void;
-  onUrgencyOverride: (id: string, urgency: UrgencyLevel) => void;
+  onUrgencyOverride: (id: string, urgency: UrgencyLevel, reason?: string) => void;
   onAssign: (incidentId: string, responderId: string) => void;
   onResolve: (notes: string) => void;
+  getRelated: (id: string) => Promise<Incident[] | null>;
+  getHistory: (id: string) => Promise<HistoryEntry[] | null>;
 }
 
 function generateSerialId(id: string): string {
@@ -108,11 +120,21 @@ export default function IncidentDrawer({
   onUrgencyOverride,
   onAssign,
   onResolve,
+  getRelated,
+  getHistory,
 }: IncidentDrawerProps) {
   const [resolveNotes, setResolveNotes] = useState('');
   const [showResolve, setShowResolve] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [relatedIncidents, setRelatedIncidents] = useState<Incident[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [showOverrideInput, setShowOverrideInput] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [pendingUrgency, setPendingUrgency] = useState<UrgencyLevel | null>(null);
 
   const urgency = URGENCY_STYLE[incident.urgency || 'medium'];
   const typeConfig = TYPE_CONFIG[incident.type] || { color: '#71717a', icon: '📋' };
@@ -132,6 +154,25 @@ export default function IncidentDrawer({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  // Fetch related incidents
+  useEffect(() => {
+    setLoadingRelated(true);
+    getRelated(incident.id).then((data) => {
+      setRelatedIncidents(data || []);
+      setLoadingRelated(false);
+    });
+  }, [incident.id, getRelated]);
+
+  // Fetch history on expand
+  useEffect(() => {
+    if (!historyExpanded) return;
+    setLoadingHistory(true);
+    getHistory(incident.id).then((data) => {
+      setHistory(data || []);
+      setLoadingHistory(false);
+    });
+  }, [incident.id, historyExpanded, getHistory]);
 
   // Loading wrapper for async actions
   const withLoading = useCallback(async (fn: () => void | Promise<void>) => {
@@ -322,6 +363,16 @@ export default function IncidentDrawer({
           </div>
         </div>
 
+        {/* ── LOW AI CONFIDENCE WARNING ── */}
+        {confidence < 0.5 && (
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-lg px-3 py-2.5 flex items-center gap-2.5">
+            <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+            <p className="text-[11px] font-bold text-amber-300 font-mono leading-tight">
+              LOW AI CONFIDENCE — Manual review recommended
+            </p>
+          </div>
+        )}
+
         {/* ── LOCATION CONFIDENCE ── */}
         <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-lg p-3">
           <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase mb-1.5 font-mono flex items-center gap-1.5">
@@ -353,6 +404,118 @@ export default function IncidentDrawer({
             </div>
           </div>
         )}
+
+        {/* ── RELATED INCIDENTS ── */}
+        <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-lg p-3">
+          <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase mb-2 font-mono flex items-center gap-1.5">
+            <Link2 size={10} /> RELATED INCIDENTS
+          </p>
+          {loadingRelated ? (
+            <p className="text-[10px] text-zinc-500 font-mono">Loading...</p>
+          ) : relatedIncidents.length === 0 ? (
+            <p className="text-[10px] text-zinc-500 font-mono">No related incidents found</p>
+          ) : (
+            <div className="space-y-1.5">
+              {relatedIncidents.map((ri) => {
+                const riType = TYPE_CONFIG[ri.type] || { color: '#71717a', icon: '📋' };
+                const riStatus = STATUS_STYLE[ri.status] ?? { color: '#71717a', bg: 'rgba(113,113,122,0.12)', border: 'rgba(113,113,122,0.3)' };
+                return (
+                  <div
+                    key={ri.id}
+                    className="bg-zinc-950/60 border border-zinc-800/30 rounded-md p-2 cursor-pointer hover:border-zinc-700/60 transition-colors"
+                    onClick={() => {
+                      /* parent should handle selecting this incident via the parent view */
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs">{riType.icon}</span>
+                      <span
+                        className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded border font-mono"
+                        style={{ color: riType.color, backgroundColor: `${riType.color}15`, borderColor: `${riType.color}40` }}
+                      >
+                        {ri.type.replace('_', ' ')}
+                      </span>
+                      <span
+                        className="text-[8px] font-black tracking-wider uppercase px-1.5 py-0.5 rounded border font-mono"
+                        style={{ color: riStatus.color, backgroundColor: riStatus.bg, borderColor: riStatus.border }}
+                      >
+                        {ri.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 truncate font-mono">{ri.location}</p>
+                    <p className="text-[9px] text-zinc-600 font-mono">{timeAgo(ri.timestamp)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── ACTIVITY LOG (AUDIT HISTORY) ── */}
+        <div className="bg-zinc-900/40 border border-zinc-800/40 rounded-lg p-3">
+          <button
+            type="button"
+            onClick={() => setHistoryExpanded(!historyExpanded)}
+            className="w-full flex items-center justify-between cursor-pointer bg-transparent border-none p-0"
+          >
+            <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase font-mono flex items-center gap-1.5">
+              <History size={10} /> ACTIVITY LOG
+            </p>
+            {historyExpanded ? (
+              <ChevronDown size={12} className="text-zinc-500" />
+            ) : (
+              <ChevronRight size={12} className="text-zinc-500" />
+            )}
+          </button>
+          {historyExpanded && (
+            <div className="mt-2.5 space-y-0 relative">
+              {loadingHistory ? (
+                <p className="text-[10px] text-zinc-500 font-mono">Loading history...</p>
+              ) : history.length === 0 ? (
+                <p className="text-[10px] text-zinc-500 font-mono">No history available</p>
+              ) : (
+                <>
+                  {/* Vertical timeline line */}
+                  <div className="absolute left-[5px] top-2 bottom-2 w-px bg-zinc-800" />
+                  {history.map((entry) => (
+                    <div key={entry.id} className="flex gap-2.5 py-1.5 relative">
+                      {/* Dot */}
+                      <div className="w-[11px] h-[11px] rounded-full border-2 border-zinc-700 bg-zinc-950 shrink-0 mt-0.5 z-10" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {entry.old_status && (
+                            <span className="text-[8px] font-bold font-mono text-zinc-500">
+                              {entry.old_status.replace('_', ' ')}
+                            </span>
+                          )}
+                          {entry.old_status && (
+                            <span className="text-[8px] text-zinc-600">&rarr;</span>
+                          )}
+                          <span className="text-[8px] font-bold font-mono text-zinc-300">
+                            {entry.new_status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        {entry.changed_by && (
+                          <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
+                            by {entry.changed_by}
+                          </p>
+                        )}
+                        {entry.notes && (
+                          <p className="text-[9px] text-zinc-400 font-mono mt-0.5 italic">
+                            &ldquo;{entry.notes}&rdquo;
+                          </p>
+                        )}
+                        <p className="text-[8px] text-zinc-600 font-mono mt-0.5">
+                          {formatTime(entry.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
       </div>
 
@@ -390,12 +553,13 @@ export default function IncidentDrawer({
             </button>
           )}
           <button
-            onClick={() => withLoading(() => {
+            onClick={() => {
               const priorities: UrgencyLevel[] = ['critical', 'high', 'medium', 'low'];
               const currentIdx = priorities.indexOf(incident.urgency || 'medium');
               const nextPriority = priorities[(currentIdx + 1) % priorities.length];
-              return onUrgencyOverride(incident.id, nextPriority);
-            })}
+              setPendingUrgency(nextPriority);
+              setShowOverrideInput(true);
+            }}
             disabled={isLoading}
             className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-[11px] font-black uppercase tracking-wider py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -421,6 +585,44 @@ export default function IncidentDrawer({
             </button>
           )}
         </div>
+
+        {/* Override Reason Panel */}
+        {showOverrideInput && pendingUrgency && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 space-y-2 animate-slide-up">
+            <p className="text-[9px] text-zinc-500 font-mono uppercase">
+              Why override to <span className="font-bold" style={{ color: URGENCY_STYLE[pendingUrgency]?.color }}>{pendingUrgency}</span> urgency?
+            </p>
+            <input
+              type="text"
+              value={overrideReason}
+              onChange={e => setOverrideReason(e.target.value)}
+              placeholder="Reason for override..."
+              className="w-full bg-[#0a0c10] border border-zinc-800 rounded-md p-2 text-xs text-zinc-100 outline-none font-mono"
+              autoFocus
+            />
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  withLoading(() => onUrgencyOverride(incident.id, pendingUrgency, overrideReason || undefined));
+                  setShowOverrideInput(false);
+                  setOverrideReason('');
+                  setPendingUrgency(null);
+                }}
+                type="button"
+                className="flex-1 py-1.5 rounded text-[10px] font-bold border-none cursor-pointer bg-zinc-700 text-white hover:bg-zinc-600 transition-colors font-mono"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => { setShowOverrideInput(false); setOverrideReason(''); setPendingUrgency(null); }}
+                type="button"
+                className="py-1.5 px-3 rounded text-[10px] border border-zinc-800 cursor-pointer bg-transparent text-zinc-500 hover:bg-zinc-800 transition-colors font-mono"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Assign Panel */}
         {showAssign && (
