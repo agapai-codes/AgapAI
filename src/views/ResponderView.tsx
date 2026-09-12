@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
-import { MapPin, Clock, AlertTriangle, CheckCircle2, Navigation, Phone, ChevronRight, LogOut } from 'lucide-react';
+import { MapPin, Clock, AlertTriangle, CheckCircle2, Navigation, ChevronRight, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getFirstAid } from '../lib/firstAid';
 import type { Incident, IncidentStatus } from '../types/incident';
@@ -63,7 +63,9 @@ export default function ResponderView() {
       });
       const payload = await res.json();
       if (payload.success && payload.data) {
-        setIncidents(prev => prev.map(i => i.id === id ? payload.data : i));
+        setIncidents(prev => payload.data.status === 'RESOLVED'
+          ? prev.filter(i => i.id !== id)
+          : prev.map(i => i.id === id ? payload.data : i));
         if (selectedIncident?.id === id) setSelectedIncident(payload.data);
         toast.success(`Status updated to ${status}`);
         setShowResolve(false);
@@ -167,10 +169,6 @@ export default function ResponderView() {
                 <button onClick={() => updateStatus(inc.id, 'ARRIVED')} disabled={updateLoading}
                   style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#3b82f6', color: '#fff' }}>
                   On Scene
-                </button>
-                <button onClick={() => setShowResolve(true)} disabled={updateLoading}
-                  style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#000' }}>
-                  Mark Resolved
                 </button>
               </>
             )}

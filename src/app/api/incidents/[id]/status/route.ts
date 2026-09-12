@@ -1,7 +1,7 @@
 // src/app/api/incidents/[id]/status/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { updateIncidentStatus, resolveIncident } from '@/lib/db';
+import { updateIncidentStatus, resolveIncident, getSql } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { getUserById } from '@/lib/users';
 import type { IncidentStatus } from '@/types/incident';
@@ -35,11 +35,24 @@ export async function PATCH(
     if (session) {
       const dbUser = await getUserById(session.id).catch(() => null);
       const role = dbUser?.role ?? session.role;
-      // Allow dispatcher, admin, AND responder roles
-      if (role !== 'dispatcher' && role !== 'admin' && role !== 'responder') {
+
+      if (role === 'dispatcher' || role === 'admin') {
+        // Dispatchers and admins can update any incident
+        changedBy = dbUser?.email ?? session.email;
+      } else if (role === 'responder') {
+        // Responders can only update incidents assigned to them
+        const sql = getSql();
+        const assigned = (await sql`SELECT assigned_responder_id FROM incidents WHERE id = ${id}`) as { assigned_responder_id: string | null }[];
+        if (assigned.length === 0) {
+          return NextResponse.json({ success: false, error: 'Incident not found' }, { status: 404 });
+        }
+        if (assigned[0].assigned_responder_id !== session.id) {
+          return NextResponse.json({ success: false, error: 'Forbidden: Incident not assigned to you' }, { status: 403 });
+        }
+        changedBy = dbUser?.email ?? session.email;
+      } else {
         return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
       }
-      changedBy = dbUser?.email ?? session.email;
     } else if (!demoOpen) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }

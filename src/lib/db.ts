@@ -189,10 +189,15 @@ export async function updateIncidentStatus(
         dispatched_at = CASE WHEN ${status} = 'DISPATCHED' THEN NOW() ELSE dispatched_at END,
         resolved_at = CASE WHEN ${status} = 'RESOLVED' THEN NOW() ELSE resolved_at END
     WHERE id = ${id}
-    RETURNING id, type::text, location, description, status::text, reporter,
-              created_at, ST_X(geom) AS lng, ST_Y(geom) AS lat,
-              urgency, urgency_reason, people_affected, condition, hazards,
-              confidence, consciousness, breathing, bleeding
+    RETURNING i.id, i.type::text, i.location, i.description, i.status::text, i.reporter,
+              i.created_at, ST_X(i.geom) AS lng, ST_Y(i.geom) AS lat,
+              i.urgency, i.urgency_reason, i.people_affected, i.condition, i.hazards,
+              i.confidence, i.consciousness, i.breathing, i.bleeding, i.transcript,
+              i.assigned_responder_id, r.name AS assigned_responder_name,
+              i.resolution_notes, i.dispatched_at, i.resolved_at
+    FROM incidents i
+    LEFT JOIN responders r ON i.assigned_responder_id = r.id
+    WHERE i.id = ${id}
   `) as IncidentRow[];
 
   if (result.length === 0) return null;
@@ -280,8 +285,10 @@ export async function resolveIncident(
 ): Promise<Incident | null> {
   const sql = getSql();
 
-  // Get the assigned responder id to free them up
-  const inc = (await sql`SELECT assigned_responder_id FROM incidents WHERE id = ${id}`) as { assigned_responder_id: string | null }[];
+  // Get current status and assigned responder id
+  const inc = (await sql`SELECT status::text AS old_status, assigned_responder_id FROM incidents WHERE id = ${id}`) as { old_status: string; assigned_responder_id: string | null }[];
+
+  if (inc.length === 0) return null;
 
   const result = (await sql`
     UPDATE incidents
@@ -289,10 +296,15 @@ export async function resolveIncident(
         resolution_notes = ${resolutionNotes},
         resolved_at = NOW()
     WHERE id = ${id}
-    RETURNING id, type::text, location, description, status::text, reporter,
-              created_at, ST_X(geom) AS lng, ST_Y(geom) AS lat,
-              urgency, urgency_reason, people_affected, condition, hazards,
-              confidence, consciousness, breathing, bleeding
+    RETURNING i.id, i.type::text, i.location, i.description, i.status::text, i.reporter,
+              i.created_at, ST_X(i.geom) AS lng, ST_Y(i.geom) AS lat,
+              i.urgency, i.urgency_reason, i.people_affected, i.condition, i.hazards,
+              i.confidence, i.consciousness, i.breathing, i.bleeding, i.transcript,
+              i.assigned_responder_id, r.name AS assigned_responder_name,
+              i.resolution_notes, i.dispatched_at, i.resolved_at
+    FROM incidents i
+    LEFT JOIN responders r ON i.assigned_responder_id = r.id
+    WHERE i.id = ${id}
   `) as IncidentRow[];
 
   if (result.length === 0) return null;
@@ -305,7 +317,7 @@ export async function resolveIncident(
   try {
     await sql`
       INSERT INTO incident_status_history (incident_id, old_status, new_status, changed_by, notes)
-      VALUES (${id}, 'DISPATCHED'::incident_status, 'RESOLVED'::incident_status, ${changedBy || 'system'}, ${resolutionNotes})
+      VALUES (${id}, ${inc[0].old_status}::incident_status, 'RESOLVED'::incident_status, ${changedBy || 'system'}, ${resolutionNotes})
     `;
   } catch (err) {
     console.warn('[DB] Failed to write resolution history:', err);
