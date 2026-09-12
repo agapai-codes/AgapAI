@@ -1,9 +1,10 @@
-// src/app/dashboard/page.tsx
-// Dashboard with optional dispatcher auth gate.
+// src/app/dispatcher/page.tsx
+// Dispatcher command center with role-based auto-redirect.
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import DispatchView from '../../views/DispatchView';
 
@@ -36,44 +37,35 @@ function LoginGate({ onLogin }: { onLogin: () => void }) {
           <p style={{ color: '#71717a', fontSize: '14px' }}>Sign in to access the command center</p>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <input
-            type="email"
-            placeholder="Dispatcher email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            aria-label="Email"
-            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            aria-label="Password"
-            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }}
-          />
+          <input type="email" placeholder="Dispatcher email" value={email} onChange={e => setEmail(e.target.value)} required aria-label="Email"
+            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required aria-label="Password"
+            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }} />
           {error && <p style={{ color: '#f87171', fontSize: '12px' }}>{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ background: '#fafafa', color: '#09090b', fontWeight: 600, borderRadius: '8px', border: 'none', padding: '12px', fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
-          >
+          <button type="submit" disabled={loading}
+            style={{ background: '#fafafa', color: '#09090b', fontWeight: 600, borderRadius: '8px', border: 'none', padding: '12px', fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
         <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#52525b' }}>
-          Demo: dispatcher@agapai.ph
+          Demo: dispatcher@agapai.ph / agapai123
         </p>
       </div>
     </div>
   );
 }
 
-export default function Dashboard() {
+export default function DispatcherPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [loginDone, setLoginDone] = useState(false);
+
+  // Auto-redirect responders to /responder
+  useEffect(() => {
+    if (!loading && user && user.role === 'responder') {
+      router.replace('/responder');
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -86,13 +78,9 @@ export default function Dashboard() {
     );
   }
 
-  // Allow viewing without login for demo (DEMO_OPEN_MUTATIONS=true on Vercel)
-  // But show a login prompt if not authenticated
+  // Responders get redirected; dispatchers see the dashboard
   if (!user && !loginDone) {
-    const demoOpen = process.env.NEXT_PUBLIC_DEMO_OPEN === 'true';
-    if (!demoOpen) {
-      return <LoginGate onLogin={() => setLoginDone(true)} />;
-    }
+    return <LoginGate onLogin={() => setLoginDone(true)} />;
   }
 
   return <DispatchView />;

@@ -1,9 +1,10 @@
 // src/app/responder/page.tsx
-// Responder mobile interface
+// Responder mobile interface with role-based auto-redirect.
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import ResponderView from '../../views/ResponderView';
 
@@ -51,6 +52,9 @@ function ResponderLogin({ onLogin }: { onLogin: () => void }) {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#52525b' }}>
+          Demo: dispatcher@agapai.ph / agapai123
+        </p>
       </div>
     </div>
   );
@@ -58,7 +62,15 @@ function ResponderLogin({ onLogin }: { onLogin: () => void }) {
 
 export default function ResponderPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [loginDone, setLoginDone] = useState(false);
+
+  // Auto-redirect dispatchers to /dispatcher
+  useEffect(() => {
+    if (!loading && user && (user.role === 'dispatcher' || user.role === 'admin')) {
+      router.replace('/dispatcher');
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -68,6 +80,7 @@ export default function ResponderPage() {
     );
   }
 
+  // Dispatchers get redirected; responders see the view
   if (!user && !loginDone) {
     return <ResponderLogin onLogin={() => setLoginDone(true)} />;
   }

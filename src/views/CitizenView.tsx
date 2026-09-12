@@ -336,7 +336,7 @@ export default function CitizenView() {
           )}
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <a href="/dashboard" style={{ flex: 1 }}><button style={{ width: '100%', background: '#fafafa', color: '#09090b', height: '48px', fontWeight: 500, borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Dispatcher Dashboard <ArrowRight size={16} /></button></a>
+            <a href="/dispatcher" style={{ flex: 1 }}><button style={{ width: '100%', background: '#fafafa', color: '#09090b', height: '48px', fontWeight: 500, borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Dispatcher Dashboard <ArrowRight size={16} /></button></a>
             <button onClick={handleReset} style={{ height: '48px', border: '1px solid #3f3f46', color: '#d4d4d8', borderRadius: '8px', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px' }}><RotateCcw size={16} /> New</button>
           </div>
         </div>

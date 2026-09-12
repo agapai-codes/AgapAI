@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-export type Role = 'citizen' | 'dispatcher' | 'admin';
+export type Role = 'citizen' | 'dispatcher' | 'admin' | 'responder';
 
 export interface AuthUser {
   id: string;
