@@ -49,7 +49,7 @@ export default function DispatcherDashboard() {
   }, []);
 
   useEffect(() => {
-    getResponders().then(setResponders);
+    getResponders().then(setResponders).catch(() => {});
   }, [getResponders]);
 
   // Trigger map resize when drawer toggles
@@ -77,6 +77,13 @@ export default function DispatcherDashboard() {
     triaged: queue.filter(q => q.dispatch_priority_score > 50).length,
   }), [incidents, queue]);
 
+  // Build score map for O(1) lookup
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, number>();
+    queue.forEach(q => map.set(q.incident_id, q.dispatch_priority_score));
+    return map;
+  }, [queue]);
+
   const filtered = useMemo(() => {
     return incidents
       .filter(i => i.status !== 'RESOLVED')
@@ -90,9 +97,9 @@ export default function DispatcherDashboard() {
         return ms && mt && mu;
       })
       .sort((a, b) => {
-        // Sort by triage priority score if available
-        const scoreA = queue.find(q => q.incident_id === a.id)?.dispatch_priority_score ?? 0;
-        const scoreB = queue.find(q => q.incident_id === b.id)?.dispatch_priority_score ?? 0;
+        // Sort by triage priority score using O(1) lookup
+        const scoreA = scoreMap.get(a.id) ?? 0;
+        const scoreB = scoreMap.get(b.id) ?? 0;
         if (scoreA !== scoreB) return scoreB - scoreA;
         // Fallback to urgency then time
         const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -101,7 +108,7 @@ export default function DispatcherDashboard() {
         if (ua !== ub) return ua - ub;
         return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       });
-  }, [incidents, search, selectedType, selectedUrgency, queue]);
+  }, [incidents, search, selectedType, selectedUrgency, scoreMap]);
 
   const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
     const updated = await updateStatus(id, status);

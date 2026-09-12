@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { Incident, IncidentStatus, UrgencyLevel } from '../types/incident';
 import type { TriageResult, UnitType } from '../types/triage';
-import { getFirstAid, getFirstAidText } from '../lib/firstAid';
+import { getFirstAid } from '../lib/firstAid';
 
 interface DispatchIncidentDetailsProps {
   incident: Incident;

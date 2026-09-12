@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { extractFallback, detectUnitType } from '@/lib/extractionFallback';
-import { generateTriageRecommendation } from '@/lib/triage';
+import { generateTriageRecommendation } from '@/lib/triageEngine';
 import type { IncidentType } from '@/types/incident';
 import type { ExtractedInfo } from '@/lib/extractionFallback';
 
@@ -117,10 +117,11 @@ export async function POST(request: NextRequest) {
     const recommendation = generateTriageRecommendation(
       extracted.incident_type,
       extracted.urgency,
+      extracted.confidence ?? 0.7,
+      extracted.people_affected,
       extracted.consciousness,
       extracted.breathing,
       extracted.bleeding,
-      extracted.people_affected,
       extracted.hazards,
     );
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
       recommended_unit_type: recommendation.recommended_units,
       dispatch_priority_score: recommendation.dispatch_priority_score,
       triage_flags: recommendation.triage_flags,
-      response_actions: recommendation.response_actions.map(a => ({
+      response_actions: recommendation.response_actions.map((a: { id: string; label: string; description: string; priority: string }) => ({
         id: a.id,
         label: a.label,
         description: a.description,

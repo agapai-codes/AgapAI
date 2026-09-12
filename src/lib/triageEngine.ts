@@ -154,7 +154,13 @@ export function generateTriageRecommendation(
 
   const estimatedResponseTime = urgency === 'critical' ? 5 : urgency === 'high' ? 10 : urgency === 'medium' ? 20 : 30;
 
-  const escalationNeeded = severity >= 7 || triageFlags.includes('MASS_CASUALTY');
+  const escalationNeeded = severity >= 7 || triageFlags.includes('MASS_CASUALTY') || triageFlags.includes('UNCONSCIOUS') || triageFlags.includes('NOT_BREATHING');
+
+  const escalationReasons: string[] = [];
+  if (severity >= 7) escalationReasons.push(`Severity score ${severity}/10 exceeds threshold.`);
+  if (triageFlags.includes('MASS_CASUALTY')) escalationReasons.push('Mass-casualty event detected.');
+  if (triageFlags.includes('UNCONSCIOUS')) escalationReasons.push('Unconscious patient detected.');
+  if (triageFlags.includes('NOT_BREATHING')) escalationReasons.push('Respiratory failure detected.');
 
   return {
     recommended_units: units,
@@ -164,10 +170,15 @@ export function generateTriageRecommendation(
     dispatch_priority_score: dispatchPriorityScore,
     estimated_response_time_minutes: estimatedResponseTime,
     escalation_needed: escalationNeeded,
-    escalation_reason: escalationNeeded
-      ? `Severity score ${severity}/10 exceeds threshold. ${
-          triageFlags.includes('MASS_CASUALTY') ? 'Mass-casualty event detected.' : ''
-        }`
-      : undefined,
+    escalation_reason: escalationNeeded ? escalationReasons.join(' ') : undefined,
   };
+}
+
+// Recalculate priority score with actual elapsed time
+export function recalculatePriorityScore(
+  severity: number,
+  confidence: number,
+  elapsedMinutes: number
+): number {
+  return calculatePriorityScore(severity, elapsedMinutes, confidence);
 }

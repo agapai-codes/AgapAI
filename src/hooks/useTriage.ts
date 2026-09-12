@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { Incident, IncidentStatus, UrgencyLevel } from '../types/incident';
 import type { TriageResult, QueueItem, QueueSortBy, QueueFilterBy } from '../types/triage';
-import { generateTriageRecommendation, calculatePriorityScore } from '../lib/triageEngine';
+import { generateTriageRecommendation, calculatePriorityScore, recalculatePriorityScore } from '../lib/triageEngine';
 
 interface UseTriageOptions {
   incidents: Incident[];
@@ -70,16 +70,22 @@ export function useTriage({ incidents, sortBy = 'priority', filterBy = 'all' }: 
       filtered = filtered.filter(i => i.urgency === 'critical' && i.status !== 'RESOLVED');
     }
 
-    // Build queue items with triage scores
+    // Build queue items with triage scores (recalculated with actual elapsed time)
     const items: QueueItem[] = filtered
       .filter(i => i.status !== 'RESOLVED')
       .map(inc => {
         const triage = triageIncident(inc);
         const minutesElapsed = (Date.now() - new Date(inc.timestamp).getTime()) / 60000;
+        // Recalculate priority score with actual elapsed time for dynamic queue ranking
+        const updatedScore = recalculatePriorityScore(
+          triage.recommendation.severity_score,
+          triage.confidence,
+          minutesElapsed
+        );
         return {
           incident_id: inc.id,
-          dispatch_priority_score: triage.recommendation.dispatch_priority_score,
-          triage_result: triage,
+          dispatch_priority_score: updatedScore,
+          triage_result: { ...triage, recommendation: { ...triage.recommendation, dispatch_priority_score: updatedScore } },
           status: inc.status,
           created_at: inc.timestamp,
           time_elapsed_minutes: Math.round(minutesElapsed),
