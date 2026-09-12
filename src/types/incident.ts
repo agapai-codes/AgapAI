@@ -35,6 +35,11 @@ export interface Incident {
   dispatched_at?: string;
   resolved_at?: string;
   transcript?: string;
+  // Triage fields
+  recommended_unit_type?: string[];
+  dispatch_priority_score?: number;
+  triage_flags?: string[];
+  severity_score?: number;
 }
 
 export interface ApiResponse<T> {

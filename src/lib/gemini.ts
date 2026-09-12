@@ -13,6 +13,10 @@ export interface ExtractedData {
   consciousness: boolean;
   breathing: boolean;
   bleeding: boolean;
+  recommended_unit_type?: string[];
+  dispatch_priority_score?: number;
+  triage_flags?: string[];
+  response_actions?: Array<{ id: string; label: string; description: string; priority: string }>;
 }
 
 export async function extractEmergencyInfo(transcript: string): Promise<ExtractedData> {
@@ -49,5 +53,9 @@ export async function extractEmergencyInfo(transcript: string): Promise<Extracte
     consciousness: typeof data.consciousness === 'boolean' ? data.consciousness : true,
     breathing: typeof data.breathing === 'boolean' ? data.breathing : true,
     bleeding: typeof data.bleeding === 'boolean' ? data.bleeding : false,
+    recommended_unit_type: Array.isArray(data.recommended_unit_type) ? data.recommended_unit_type : undefined,
+    dispatch_priority_score: typeof data.dispatch_priority_score === 'number' ? data.dispatch_priority_score : undefined,
+    triage_flags: Array.isArray(data.triage_flags) ? data.triage_flags : undefined,
+    response_actions: Array.isArray(data.response_actions) ? data.response_actions : undefined,
   };
 }

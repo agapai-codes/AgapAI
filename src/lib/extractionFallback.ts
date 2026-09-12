@@ -3,6 +3,7 @@
 // Keeps triage functional so the demo never breaks on an API failure.
 
 import type { IncidentType } from '../types/incident';
+import type { UnitType } from '../types/triage';
 
 export interface ExtractedInfo {
   incident_type: IncidentType;
@@ -16,6 +17,8 @@ export interface ExtractedInfo {
   consciousness: boolean;
   breathing: boolean;
   bleeding: boolean;
+  recommended_unit_type: UnitType[];
+  dispatch_priority_score: number;
 }
 
 function detectType(text: string): IncidentType {
@@ -104,6 +107,35 @@ function detectHazards(text: string): string[] {
   return hazards;
 }
 
+export function detectUnitType(type: IncidentType): UnitType[] {
+  switch (type) {
+    case 'FIRE': return ['fire_truck'];
+    case 'ACCIDENT': return ['ambulance', 'rescue'];
+    case 'MEDICAL': return ['ambulance'];
+    case 'DISASTER': return ['ambulance', 'fire_truck', 'rescue', 'multi_agency'];
+    case 'VIOLENCE': return ['police', 'ambulance'];
+    case 'HAZARDOUS': return ['hazmat', 'fire_truck'];
+    case 'MISSING_PERSON': return ['police', 'rescue'];
+    default: return ['ambulance'];
+  }
+}
+
+function calculateDispatchPriority(
+  urgency: string,
+  consciousness: boolean,
+  breathing: boolean,
+  bleeding: boolean,
+  people_affected: number,
+): number {
+  const urgMap: Record<string, number> = { critical: 40, high: 30, medium: 20, low: 10 };
+  let score = urgMap[urgency] ?? 20;
+  if (!consciousness) score += 20;
+  if (!breathing) score += 20;
+  if (bleeding) score += 10;
+  score += Math.min(people_affected * 2, 10);
+  return Math.min(Math.round(score), 100);
+}
+
 export function extractFallback(transcript: string): ExtractedInfo {
   const text = transcript.toLowerCase();
   const incident_type = detectType(text);
@@ -133,6 +165,12 @@ export function extractFallback(transcript: string): ExtractedInfo {
   }
 
   const confidence = calculateConfidence(transcript, condition, location_description);
+  const recommended_unit_type = detectUnitType(incident_type);
+  const dispatch_priority_score = calculateDispatchPriority(urgency, consciousness, breathing, bleeding, people_affected);
 
-  return { incident_type, condition, location_description, people_affected, hazards, urgency, urgency_reason, confidence, consciousness, breathing, bleeding };
+  return {
+    incident_type, condition, location_description, people_affected, hazards,
+    urgency, urgency_reason, confidence, consciousness, breathing, bleeding,
+    recommended_unit_type, dispatch_priority_score,
+  };
 }

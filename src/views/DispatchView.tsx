@@ -6,8 +6,9 @@ import { Toaster, toast } from 'sonner';
 import LiveMap from '../components/LiveMap';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
-import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX } from 'lucide-react';
-import IncidentDrawer from '../components/IncidentDrawer';
+import { useTriage } from '../hooks/useTriage';
+import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
+import DispatchIncidentDetails from '../components/DispatchIncidentDetails';
 import type { Incident, IncidentStatus, UrgencyLevel } from '../types/incident';
 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'];
@@ -28,7 +29,7 @@ interface Responder {
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, assignResponder, resolveIncident, getResponders, getRelated, getHistory } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, assignResponder, resolveIncident, getResponders } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
@@ -36,6 +37,9 @@ export default function DispatcherDashboard() {
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState('');
   const [responders, setResponders] = useState<Responder[]>([]);
+
+  // Triage integration
+  const { queue, triageIncident, triageAll } = useTriage({ incidents, sortBy: 'priority' });
 
   useEffect(() => {
     setMounted(true);
@@ -56,6 +60,13 @@ export default function DispatcherDashboard() {
     return () => clearTimeout(timer);
   }, [activeIncident]);
 
+  // Triage all incidents on load
+  useEffect(() => {
+    if (incidents.length > 0) {
+      triageAll();
+    }
+  }, [incidents, triageAll]);
+
   const metrics = useMemo(() => ({
     total: incidents.length,
     critical: incidents.filter(i => i.urgency === 'critical' && i.status !== 'RESOLVED').length,
@@ -63,7 +74,8 @@ export default function DispatcherDashboard() {
     resolved: incidents.filter(i => i.status === 'RESOLVED').length,
     awaitingReview: incidents.filter(i => i.status === 'PENDING' || i.status === 'REVIEWING').length,
     unassigned: incidents.filter(i => !i.assigned_responder_id && i.status !== 'RESOLVED').length,
-  }), [incidents]);
+    triaged: queue.filter(q => q.dispatch_priority_score > 50).length,
+  }), [incidents, queue]);
 
   const filtered = useMemo(() => {
     return incidents
@@ -78,13 +90,18 @@ export default function DispatcherDashboard() {
         return ms && mt && mu;
       })
       .sort((a, b) => {
+        // Sort by triage priority score if available
+        const scoreA = queue.find(q => q.incident_id === a.id)?.dispatch_priority_score ?? 0;
+        const scoreB = queue.find(q => q.incident_id === b.id)?.dispatch_priority_score ?? 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        // Fallback to urgency then time
         const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
         const ua = order[a.urgency || 'medium'] ?? 3;
         const ub = order[b.urgency || 'medium'] ?? 3;
         if (ua !== ub) return ua - ub;
         return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       });
-  }, [incidents, search, selectedType, selectedUrgency]);
+  }, [incidents, search, selectedType, selectedUrgency, queue]);
 
   const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
     const updated = await updateStatus(id, status);
@@ -127,6 +144,12 @@ export default function DispatcherDashboard() {
     }
   };
 
+  // Get triage result for active incident
+  const activeTriageResult = useMemo(() => {
+    if (!activeIncident) return undefined;
+    return queue.find(q => q.incident_id === activeIncident.id)?.triage_result;
+  }, [activeIncident, queue]);
+
   return (
     <div className="w-full h-screen bg-[#0a0c10] text-zinc-50 flex flex-col overflow-hidden font-sans select-none">
       <Toaster position="top-right" theme="dark" />
@@ -165,21 +188,22 @@ export default function DispatcherDashboard() {
       </header>
 
       {/* ── METRICS RIBBON ── */}
-      <div className="w-full h-14 min-h-[56px] grid grid-cols-6 gap-3 px-4 bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 border-b border-zinc-800/60 z-20 items-center">
+      <div className="w-full h-14 min-h-[56px] grid grid-cols-7 gap-2 px-4 bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 border-b border-zinc-800/60 z-20 items-center">
         {[
-          { label: 'TOTAL INCIDENTS', value: metrics.total, icon: Activity, color: '#f4f4f5' },
-          { label: 'CRITICAL / HIGH', value: metrics.critical, icon: ShieldAlert, color: '#ef4444' },
-          { label: 'UNITS DISPATCHED', value: metrics.dispatched, icon: AlertTriangle, color: '#60a5fa' },
-          { label: 'AWAITING REVIEW', value: metrics.awaitingReview, icon: Clock, color: '#fbbf24' },
+          { label: 'TOTAL', value: metrics.total, icon: Activity, color: '#f4f4f5' },
+          { label: 'CRITICAL', value: metrics.critical, icon: ShieldAlert, color: '#ef4444' },
+          { label: 'DISPATCHED', value: metrics.dispatched, icon: AlertTriangle, color: '#60a5fa' },
+          { label: 'TRIAGED', value: metrics.triaged, icon: Zap, color: '#a855f7' },
+          { label: 'AWAITING', value: metrics.awaitingReview, icon: Clock, color: '#fbbf24' },
           { label: 'UNASSIGNED', value: metrics.unassigned, icon: UserX, color: '#f97316' },
-          { label: 'CASES RESOLVED', value: metrics.resolved, icon: CheckCircle2, color: '#22c55e' },
+          { label: 'RESOLVED', value: metrics.resolved, icon: CheckCircle2, color: '#22c55e' },
         ].map(m => (
-          <div key={m.label} className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/50 rounded-lg px-3 py-2 flex items-center justify-between">
+          <div key={m.label} className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/50 rounded-lg px-2 py-1.5 flex items-center justify-between">
             <div>
-              <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">{m.label}</p>
-              <h3 className="text-xl font-black mt-0.5" style={{ color: m.color }}>{m.value}</h3>
+              <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase">{m.label}</p>
+              <h3 className="text-lg font-black mt-0.5" style={{ color: m.color }}>{m.value}</h3>
             </div>
-            <m.icon size={16} style={{ color: m.color, opacity: 0.5 }} />
+            <m.icon size={14} style={{ color: m.color, opacity: 0.5 }} />
           </div>
         ))}
       </div>
@@ -238,22 +262,33 @@ export default function DispatcherDashboard() {
             </div>
             {error && <p className="text-[10px] text-red-400/80 bg-[#0d0f12]/80 backdrop-blur-xl px-2 py-1 rounded-md">{error}</p>}
           </div>
+
+          {/* Triage Queue Indicator (bottom-left) */}
+          <div className="absolute bottom-4 left-4 z-20">
+            <div className="bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg px-3 py-2 shadow-xl">
+              <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase mb-1">TRIAGE QUEUE</p>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-black text-purple-400">{queue.filter(q => q.status === 'PENDING' || q.status === 'REVIEWING').length}</span>
+                <span className="text-[9px] text-zinc-500">pending</span>
+                <span className="text-[8px] text-zinc-600">|</span>
+                <span className="text-lg font-black text-red-400">{queue.filter(q => q.dispatch_priority_score >= 70).length}</span>
+                <span className="text-[9px] text-zinc-500">high priority</span>
+              </div>
+            </div>
+          </div>
         </main>
 
         {/* ═══ RIGHT-SIDE DRAWER ═══ */}
         {activeIncident && (
-          <IncidentDrawer
+          <DispatchIncidentDetails
             key={activeIncident.id}
             incident={activeIncident}
-            responders={responders}
+            triageResult={activeTriageResult}
             onClose={() => setActiveIncident(null)}
-            onSelectIncident={setActiveIncident}
             onStatusUpdate={handleStatusUpdate}
             onUrgencyOverride={handleUrgencyOverride}
             onAssign={handleAssign}
             onResolve={handleResolve}
-            getRelated={getRelated}
-            getHistory={getHistory}
           />
         )}
       </div>

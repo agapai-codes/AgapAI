@@ -1,8 +1,10 @@
 // src/app/api/extract/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { extractFallback, type ExtractedInfo } from '@/lib/extractionFallback';
+import { extractFallback, detectUnitType } from '@/lib/extractionFallback';
+import { generateTriageRecommendation } from '@/lib/triage';
 import type { IncidentType } from '@/types/incident';
+import type { ExtractedInfo } from '@/lib/extractionFallback';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +76,8 @@ async function tryGemini(transcript: string): Promise<ExtractedInfo | null> {
       ? Math.min(Math.max(0, parsed.confidence), 1)
       : 0.7;
 
+    const recommended_unit_type = detectUnitType(type);
+
     return {
       incident_type: type,
       condition: typeof parsed.condition === 'string' ? parsed.condition : 'unknown condition',
@@ -86,6 +90,8 @@ async function tryGemini(transcript: string): Promise<ExtractedInfo | null> {
       consciousness: typeof parsed.consciousness === 'boolean' ? parsed.consciousness : true,
       breathing: typeof parsed.breathing === 'boolean' ? parsed.breathing : true,
       bleeding: typeof parsed.bleeding === 'boolean' ? parsed.bleeding : false,
+      recommended_unit_type,
+      dispatch_priority_score: 0,
     };
   } catch (error) {
     console.warn('[EXTRACT] Gemini failed, using fallback:', error);
@@ -106,9 +112,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Transcript too long (max 10000 characters)' }, { status: 413 });
     }
 
-    const extracted = (await tryGemini(transcript)) ?? extractFallback(transcript);
+    const extracted: ExtractedInfo = (await tryGemini(transcript)) ?? extractFallback(transcript);
 
-    return NextResponse.json({ success: true, data: extracted });
+    const recommendation = generateTriageRecommendation(
+      extracted.incident_type,
+      extracted.urgency,
+      extracted.consciousness,
+      extracted.breathing,
+      extracted.bleeding,
+      extracted.people_affected,
+      extracted.hazards,
+    );
+
+    const response = {
+      ...extracted,
+      recommended_unit_type: recommendation.recommended_units,
+      dispatch_priority_score: recommendation.dispatch_priority_score,
+      triage_flags: recommendation.triage_flags,
+      response_actions: recommendation.response_actions.map(a => ({
+        id: a.id,
+        label: a.label,
+        description: a.description,
+        priority: a.priority,
+      })),
+    };
+
+    return NextResponse.json({ success: true, data: response });
   } catch (error) {
     console.error('[EXTRACT] Error:', error);
     return NextResponse.json({ success: false, error: 'Failed to process transcript' }, { status: 500 });
