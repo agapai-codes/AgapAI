@@ -1,7 +1,7 @@
 // src/app/api/incidents/[id]/status/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { updateIncidentStatus } from '@/lib/db';
+import { updateIncidentStatus, resolveIncident } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { getUserById } from '@/lib/users';
 import type { IncidentStatus } from '@/types/incident';
@@ -18,7 +18,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const { status } = body ?? {};
+    const { status, resolution_notes } = body ?? {};
 
     if (!status || !VALID_STATUSES.includes(status)) {
       return NextResponse.json(
@@ -28,17 +28,15 @@ export async function PATCH(
     }
 
     // --- Authorization ---------------------------------------------------
-    // Secure by default: require a dispatcher/admin session.
-    // Only an explicit DEMO_OPEN_MUTATIONS=true opens this for the live demo.
     const demoOpen = process.env.DEMO_OPEN_MUTATIONS === 'true';
     let changedBy = 'dispatcher (demo)';
 
     const session = await getSessionUser().catch(() => null);
     if (session) {
-      // Re-check role against the database (JWT role is not trusted blindly).
       const dbUser = await getUserById(session.id).catch(() => null);
       const role = dbUser?.role ?? session.role;
-      if (role !== 'dispatcher' && role !== 'admin') {
+      // Allow dispatcher, admin, AND responder roles
+      if (role !== 'dispatcher' && role !== 'admin' && role !== 'responder') {
         return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
       }
       changedBy = dbUser?.email ?? session.email;
@@ -47,7 +45,13 @@ export async function PATCH(
     }
     // ---------------------------------------------------------------------
 
-    const updated = await updateIncidentStatus(id, status, changedBy);
+    let updated;
+    if (status === 'RESOLVED') {
+      // Use resolveIncident which frees up the responder and persists notes
+      updated = await resolveIncident(id, resolution_notes || 'Resolved', changedBy);
+    } else {
+      updated = await updateIncidentStatus(id, status, changedBy);
+    }
 
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Incident not found' }, { status: 404 });

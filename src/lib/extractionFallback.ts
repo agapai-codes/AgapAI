@@ -117,15 +117,19 @@ export function extractFallback(transcript: string): ExtractedInfo {
 
   const critical = /(unconscious|not breathing|severe bleeding|bleeding heavily|trapped|cardiac|heart attack|chest pain)/.test(text);
   const high = /(bleed|burn|fracture|broken|difficulty breathing|injur|shot|stab)/.test(text);
+  const low = /(check|wellness|welfare|noise|suspicious|survey|inspection|minor|small)/.test(text) && !critical && !high;
 
   let urgency: ExtractedInfo['urgency'] = 'medium';
-  let urgency_reason = 'Minor or precautionary report; no immediate life threat detected.';
+  let urgency_reason = 'Standard report; assessed as non-urgent.';
   if (critical) {
     urgency = 'critical';
     urgency_reason = 'Life-threatening indicators detected (unconsciousness, severe bleeding, breathing failure, or entrapment).';
   } else if (high) {
     urgency = 'high';
     urgency_reason = 'Injury requiring prompt attention; victim appears conscious.';
+  } else if (low) {
+    urgency = 'low';
+    urgency_reason = 'Precautionary or minor report; no immediate danger or injury detected.';
   }
 
   const confidence = calculateConfidence(transcript, condition, location_description);

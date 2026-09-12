@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
 const COOKIE_NAME = 'agapai_session';
 const SESSION_DAYS = 7;
 
-export type Role = 'citizen' | 'dispatcher' | 'admin';
+export type Role = 'citizen' | 'dispatcher' | 'admin' | 'responder';
 
 export interface SessionUser {
   id: string;

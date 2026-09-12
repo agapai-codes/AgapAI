@@ -57,6 +57,7 @@ export default function DispatcherDashboard() {
 
   const filtered = useMemo(() => {
     return incidents
+      .filter(i => i.status !== 'RESOLVED')
       .filter(i => {
         const ms = i.location.toLowerCase().includes(search.toLowerCase()) ||
           i.type.toLowerCase().includes(search.toLowerCase()) ||

@@ -31,9 +31,9 @@ export default function ResponderView() {
       const res = await fetch('/api/incidents', { cache: 'no-store' });
       const payload = await res.json();
       if (payload.success && payload.data) {
-        // Filter to only incidents assigned to this responder (or all if demo mode)
+        // Filter to only incidents assigned to this responder (or all if demo mode), exclude resolved
         const assigned = payload.data.filter((i: Incident) =>
-          i.assigned_responder_id === user?.id || i.status === 'DISPATCHED'
+          i.status !== 'RESOLVED' && (i.assigned_responder_id === user?.id || i.status === 'DISPATCHED')
         );
         setIncidents(assigned);
       }
@@ -160,11 +160,11 @@ export default function ResponderView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {inc.status === 'DISPATCHED' && (
               <>
-                <button onClick={() => updateStatus(inc.id, 'PENDING')} disabled={updateLoading}
+                <button onClick={() => updateStatus(inc.id, 'EN_ROUTE')} disabled={updateLoading}
                   style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: '1px solid #f97316', cursor: 'pointer', background: 'rgba(249,115,22,0.1)', color: '#f97316' }}>
                   En Route
                 </button>
-                <button onClick={() => updateStatus(inc.id, 'DISPATCHED')} disabled={updateLoading}
+                <button onClick={() => updateStatus(inc.id, 'ARRIVED')} disabled={updateLoading}
                   style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#3b82f6', color: '#fff' }}>
                   On Scene
                 </button>
@@ -173,6 +173,24 @@ export default function ResponderView() {
                   Mark Resolved
                 </button>
               </>
+            )}
+            {inc.status === 'EN_ROUTE' && (
+              <>
+                <button onClick={() => updateStatus(inc.id, 'ARRIVED')} disabled={updateLoading}
+                  style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#3b82f6', color: '#fff' }}>
+                  Arrived on Scene
+                </button>
+                <button onClick={() => setShowResolve(true)} disabled={updateLoading}
+                  style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#000' }}>
+                  Mark Resolved
+                </button>
+              </>
+            )}
+            {inc.status === 'ARRIVED' && (
+              <button onClick={() => setShowResolve(true)} disabled={updateLoading}
+                style={{ width: '100%', padding: '14px', borderRadius: '8px', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#000' }}>
+                Mark Resolved
+              </button>
             )}
             {inc.status === 'PENDING' && (
               <button onClick={() => updateStatus(inc.id, 'DISPATCHED')} disabled={updateLoading}
