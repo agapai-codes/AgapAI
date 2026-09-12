@@ -127,6 +127,9 @@ export default function CitizenView() {
     setExtractionStep('analyzing-transcript');
     try {
       const extracted = await extractEmergencyInfo(text);
+      if (!extracted) {
+        throw new Error('Failed to extract emergency information');
+      }
       const sub: Submission = {
         incident_type: extracted.incident_type,
         condition: extracted.condition,
@@ -138,7 +141,8 @@ export default function CitizenView() {
         gps: coords,
       };
       setSubmission(sub);
-      setFirstAidProtocol(getFirstAid(sub.condition + ' ' + sub.incident_type));
+      const conditionText = (sub.condition || sub.incident_type || 'general emergency').trim();
+      setFirstAidProtocol(getFirstAid(conditionText));
 
       setExtractionStep('creating-report');
       await createIncident({
@@ -169,13 +173,17 @@ export default function CitizenView() {
       setIsProcessing(false);
       setExtractionStep(null);
     }
-  }, [gpsCoords, acquireGPS, createIncident]);
+  }, [gpsCoords, acquireGPS, createIncident, user]);
 
   const handleVoiceSubmit = useCallback(() => processText(transcript), [transcript, processText]);
 
   const handleToggleRecording = useCallback(async () => {
     if (!isRecording) {
-      await acquireGPS();
+      const coords = await acquireGPS();
+      if (!coords) {
+        toast.error('GPS required to start recording');
+        return;
+      }
     }
     setIsRecording(prev => !prev);
   }, [isRecording, acquireGPS]);

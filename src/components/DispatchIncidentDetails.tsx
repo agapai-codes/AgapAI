@@ -294,7 +294,7 @@ export default function DispatchIncidentDetails({
             <Brain size={10} /> ASSESSMENT RATIONALE
           </p>
           <p className="text-[11px] text-zinc-300 leading-relaxed font-mono italic">
-            {incident.urgency_reason || triageResult?.urgency_reason || 'Standard report; assessed as non-urgent'}
+            {incident.urgency_reason || triageResult?.urgency_reason || 'No assessment rationale available'}
           </p>
         </div>
 
