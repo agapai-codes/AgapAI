@@ -200,6 +200,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       const isSelected = selectedIncident?.id === inc.id;
       const isCritical = inc.urgency === 'CRITICAL';
       const size = isSelected ? 36 : 28;
+      const accuracy = inc.location?.confidenceScore ?? 85;
 
       // ── Beacon pin element ──
       const el = document.createElement('div');
@@ -262,6 +263,22 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
         el.appendChild(pulse);
       }
 
+      // GPS accuracy indicator (small dot)
+      const accDot = document.createElement('div');
+      const accColor = accuracy >= 90 ? '#22c55e' : accuracy >= 70 ? '#eab308' : '#ef4444';
+      accDot.style.cssText = `
+        position: absolute;
+        bottom: -2px; left: 50%;
+        transform: translateX(-50%);
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: ${accColor};
+        border: 1.5px solid #09090b;
+        z-index: 2;
+      `;
+      accDot.title = `GPS Accuracy: ${accuracy}%`;
+      el.appendChild(accDot);
+
       // ── Marker ──
       const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
         .setLngLat(inc.displayCoords)
@@ -286,14 +303,14 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
           border-radius: 12px;
           box-shadow: 0 10px 40px rgba(0,0,0,0.6);
           color: #fafafa;
-          max-width: 280px;
+          max-width: 300px;
           font-size: 12px;
         ">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
             <span style="font-size: 18px;">${TYPE_ICONS[inc.type] || '📋'}</span>
             <div style="flex: 1; min-width: 0;">
               <div style="font-weight: 700; font-size: 13px; color: #fafafa;">${escapeHtml(inc.type.replace('_', ' '))}</div>
-              <div style="font-size: 10px; color: #71717a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(inc.location.landmarkText)}</div>
+              <div style="font-size: 10px; color: #94a3b8;">${escapeHtml(inc.location.landmarkText)}</div>
             </div>
             <span style="
               font-size: 10px;
@@ -310,8 +327,9 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
             ${escapeHtml(inc.condition)}
           </p>
           <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(63,63,70,0.3);">
-            <span style="font-size: 10px; color: #71717a;">👥 ${inc.peopleCount}</span>
-            <span style="font-size: 10px; color: #71717a;">📍 ${inc.location.coordinates[1].toFixed(4)}, ${inc.location.coordinates[0].toFixed(4)}</span>
+            <span style="font-size: 10px; color: #94a3b8;">👥 ${inc.peopleCount}</span>
+            <span style="font-size: 10px; color: #94a3b8; font-family: monospace;">${inc.location.coordinates[1].toFixed(5)}, ${inc.location.coordinates[0].toFixed(5)}</span>
+            <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: ${accColor}15; color: ${accColor}; border: 1px solid ${accColor}30; margin-left: auto;">GPS ${accuracy}%</span>
           </div>
         </div>
       `;

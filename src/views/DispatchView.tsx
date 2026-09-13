@@ -195,13 +195,15 @@ export default function DispatcherDashboard() {
     <div className="h-screen w-screen overflow-hidden flex bg-[#09090b] text-white font-sans select-none">
       <Toaster position="top-right" theme="dark" />
 
-      {/* ── SIDEBAR ── */}
-      <Sidebar
-        activeRoute="dispatcher"
-        onNavigate={handleNavigate}
-        user={user}
-        onSignOut={signOut}
-      />
+      {/* ── SIDEBAR (hidden on mobile) ── */}
+      <div className="hidden lg:block">
+        <Sidebar
+          activeRoute="dispatcher"
+          onNavigate={handleNavigate}
+          user={user}
+          onSignOut={signOut}
+        />
+      </div>
 
       {/* ── MAIN CONTENT ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -300,10 +302,10 @@ export default function DispatcherDashboard() {
       </header>
 
       {/* ── 3-PANE BODY ── */}
-      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: selectedReport ? '320px 1fr 420px' : '320px 1fr' }}>
-
-        {/* ═══ PANE 1: LEFT QUEUE ═══ */}
-        <div className="min-h-0 overflow-y-auto border-r border-white/5" style={{ background: 'rgba(9,9,11,0.6)' }}>
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Left Queue — hidden on mobile, shown as overlay */}
+        <div className={`${selectedReport ? 'hidden lg:block lg:w-80' : 'w-full lg:w-80'} shrink-0 border-r border-white/5 overflow-y-auto`}
+          style={{ background: 'rgba(9,9,11,0.6)' }}>
           {/* Queue header */}
           <div className="p-3 border-b border-white/5 sticky top-0 z-10" style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(12px)' }}>
             <div className="flex items-center justify-between">
@@ -380,7 +382,7 @@ export default function DispatcherDashboard() {
         </div>
 
         {/* ═══ PANE 2: MAP ═══ */}
-        <div className="min-h-0 min-w-0 relative">
+        <div className="flex-1 min-w-0 relative min-h-0">
           <DispatcherMap
             incidents={reports}
             selectedIncident={selectedReport}
@@ -418,17 +420,22 @@ export default function DispatcherDashboard() {
           </div>
         </div>
 
-        {/* ═══ PANE 3: RIGHT DETAIL ═══ */}
+        {/* ═══ PANE 3: RIGHT DETAIL (slide-in on mobile, static on desktop) ═══ */}
         {selectedReport && (
-          <div className="min-h-0 overflow-y-auto border-l border-white/5">
-            <DispatchIncidentPanel
-              incident={selectedReport}
-              onClose={() => setSelectedReport(null)}
-              onStatusUpdate={handleStatusUpdate}
-              onUrgencyOverride={handleUrgencyOverride}
-              onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
-              onResolve={handleResolve}
-            />
+          <div className="fixed inset-0 lg:static lg:inset-auto z-40 lg:z-auto">
+            {/* Backdrop on mobile */}
+            <div className="absolute inset-0 bg-black/50 lg:hidden" onClick={() => setSelectedReport(null)} />
+            {/* Panel */}
+            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-[420px] lg:static overflow-y-auto border-l border-white/5 animate-slide-in-right">
+              <DispatchIncidentPanel
+                incident={selectedReport}
+                onClose={() => setSelectedReport(null)}
+                onStatusUpdate={handleStatusUpdate}
+                onUrgencyOverride={handleUrgencyOverride}
+                onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
+                onResolve={handleResolve}
+              />
+            </div>
           </div>
         )}
       </div>
