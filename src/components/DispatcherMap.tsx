@@ -5,25 +5,26 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { IncidentReport } from '../types/incident';
 
-// ── Dark basemap (CartoDB Dark Matter) ──────────────────────────────────────
+// ── Dark basemap (OSM raster with dark CSS filter) ─────────────────────────
+// CartoDB dark tiles now require API key; using free OSM tiles with filter
 const DARK_STYLE = {
   version: 8 as const,
   sources: {
-    'carto-dark': {
+    'osm': {
       type: 'raster' as const,
       tiles: [
-        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
       minzoom: 0,
       maxzoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     },
   },
   layers: [
-    { id: 'carto-dark-layer', type: 'raster' as const, source: 'carto-dark', minzoom: 0, maxzoom: 24 },
+    { id: 'osm-layer', type: 'raster' as const, source: 'osm', minzoom: 0, maxzoom: 24 },
   ],
 };
 
@@ -129,6 +130,11 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
 
     map.on('load', () => {
       map.resize();
+      // Dark filter for OSM tiles — creates command-center aesthetic
+      const canvas = mapContainer.current?.querySelector('canvas');
+      if (canvas) {
+        canvas.style.filter = 'brightness(0.55) contrast(1.15) saturate(0.6)';
+      }
     });
 
     mapRef.current = map;
