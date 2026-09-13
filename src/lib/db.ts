@@ -61,7 +61,7 @@ export function rowToIncident(row: IncidentRow): Incident {
     reporter: row.reporter,
     reporter_email: row.reporter_email || undefined,
     timestamp: new Date(row.created_at).toISOString(),
-    urgency: (row.urgency as UrgencyLevel) || 'medium',
+    urgency: row.urgency ? (row.urgency.toUpperCase() as UrgencyLevel) : undefined,
     urgency_reason: row.urgency_reason || undefined,
     people_affected: row.people_affected || undefined,
     condition: row.condition || undefined,

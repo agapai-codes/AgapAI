@@ -20,7 +20,7 @@ export function useTriage({ incidents, sortBy = 'priority', filterBy = 'all' }: 
 
     const recommendation = generateTriageRecommendation(
       incident.type,
-      incident.urgency || 'medium',
+      incident.urgency || 'MEDIUM',
       incident.confidence ?? 0.7,
       incident.people_affected || 1,
       incident.consciousness ?? true,
@@ -40,7 +40,7 @@ export function useTriage({ incidents, sortBy = 'priority', filterBy = 'all' }: 
       bleeding: incident.bleeding || false,
       people_affected: incident.people_affected || 1,
       hazards: incident.hazards || [],
-      urgency: incident.urgency || 'medium',
+      urgency: incident.urgency || 'MEDIUM',
       urgency_reason: incident.urgency_reason || 'Standard assessment',
       confidence: incident.confidence ?? 0.7,
       recommendation,
@@ -67,7 +67,7 @@ export function useTriage({ incidents, sortBy = 'priority', filterBy = 'all' }: 
     } else if (filterBy === 'dispatched') {
       filtered = filtered.filter(i => ['DISPATCHED', 'EN_ROUTE', 'ARRIVED'].includes(i.status));
     } else if (filterBy === 'critical') {
-      filtered = filtered.filter(i => i.urgency === 'critical' && i.status !== 'RESOLVED');
+      filtered = filtered.filter(i => i.urgency === 'CRITICAL' && i.status !== 'RESOLVED');
     }
 
     // Build queue items with triage scores (recalculated with actual elapsed time)

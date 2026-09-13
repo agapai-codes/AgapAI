@@ -59,8 +59,8 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     let zoom = 6;
 
     if (incidents.length > 0) {
-      const avgLng = incidents.reduce((s, i) => s + i.coordinates[0], 0) / incidents.length;
-      const avgLat = incidents.reduce((s, i) => s + i.coordinates[1], 0) / incidents.length;
+      const avgLng = incidents.reduce((s, i) => s + i.location.coordinates[0], 0) / incidents.length;
+      const avgLat = incidents.reduce((s, i) => s + i.location.coordinates[1], 0) / incidents.length;
       center = [avgLng, avgLat];
       zoom = incidents.length === 1 ? 15 : 13;
     }
@@ -127,7 +127,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     popupsRef.current = [];
 
     mapRef.current.flyTo({
-      center: selectedIncident.coordinates,
+      center: selectedIncident.location.coordinates,
       zoom: 16,
       essential: true,
       duration: 1500,
@@ -160,8 +160,8 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       for (const other of incidents) {
         if (assigned.has(other.id)) continue;
         if (
-          Math.abs(inc.coordinates[0] - other.coordinates[0]) < CLUSTER_RADIUS &&
-          Math.abs(inc.coordinates[1] - other.coordinates[1]) < CLUSTER_RADIUS
+          Math.abs(inc.location.coordinates[0] - other.location.coordinates[0]) < CLUSTER_RADIUS &&
+          Math.abs(inc.location.coordinates[1] - other.location.coordinates[1]) < CLUSTER_RADIUS
         ) {
           group.push(other);
           assigned.add(other.id);
@@ -173,7 +173,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     for (const group of groups) {
       const isCluster = group.length > 1;
       const primary = group[0];
-      const hasCritical = group.some((i) => i.urgency === 'critical');
+      const hasCritical = group.some((i) => i.urgency === 'CRITICAL');
 
       const el = document.createElement('div');
       el.style.cssText = `
@@ -201,7 +201,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       }
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(primary.coordinates)
+        .setLngLat(primary.location.coordinates)
         .addTo(map);
 
       // Create Popup
@@ -248,9 +248,9 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
         itemRow.onmouseover = () => { itemRow.style.background = 'rgba(63,63,70,0.3)'; };
         itemRow.onmouseout = () => { itemRow.style.background = 'transparent'; };
 
-        const urgencyColor = item.urgency === 'critical' ? '#ef4444'
-          : item.urgency === 'high' ? '#f97316'
-          : item.urgency === 'medium' ? '#eab308'
+        const urgencyColor = item.urgency === 'CRITICAL' ? '#ef4444'
+          : item.urgency === 'HIGH' ? '#f97316'
+          : item.urgency === 'MEDIUM' ? '#eab308'
           : '#22c55e';
 
         itemRow.innerHTML = `
@@ -259,7 +259,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
             <span style="font-size: 10px; color: ${urgencyColor}; font-weight: 700; text-transform: uppercase;">${escapeHtml(item.urgency)}</span>
           </div>
           <p style="color: #a1a1aa; margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; font-size: 11px;">
-            ${escapeHtml(item.condition || item.locationName)}
+            ${escapeHtml(item.condition || item.location.landmarkText)}
           </p>
         `;
 
@@ -268,7 +268,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
           e.stopPropagation();
           onSelectRef.current(item);
           map.flyTo({
-            center: item.coordinates,
+            center: item.location.coordinates,
             zoom: 16,
             essential: true,
           });

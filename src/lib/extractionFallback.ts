@@ -11,7 +11,7 @@ export interface ExtractedInfo {
   location_description: string;
   people_affected: number;
   hazards: string[];
-  urgency: 'critical' | 'high' | 'medium' | 'low';
+  urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   urgency_reason: string;
   confidence: number;
   consciousness: boolean;
@@ -150,16 +150,16 @@ export function extractFallback(transcript: string): ExtractedInfo {
   const high = /(bleed|burn|fracture|broken|difficulty breathing|injur|shot|stab)/.test(text);
   const low = /(check|wellness|welfare|noise|suspicious|survey|inspection|minor|small)/.test(text) && !critical && !high;
 
-  let urgency: ExtractedInfo['urgency'] = 'medium';
+  let urgency: ExtractedInfo['urgency'] = 'MEDIUM';
   let urgency_reason = 'Standard report; assessed as non-urgent.';
   if (critical) {
-    urgency = 'critical';
+    urgency = 'CRITICAL';
     urgency_reason = 'Life-threatening indicators detected (unconsciousness, severe bleeding, breathing failure, or entrapment).';
   } else if (high) {
-    urgency = 'high';
+    urgency = 'HIGH';
     urgency_reason = 'Injury requiring prompt attention; victim appears conscious.';
   } else if (low) {
-    urgency = 'low';
+    urgency = 'LOW';
     urgency_reason = 'Precautionary or minor report; no immediate danger or injury detected.';
   }
 

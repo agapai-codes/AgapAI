@@ -9,7 +9,7 @@ import type { ExtractedInfo } from '@/lib/extractionFallback';
 export const dynamic = 'force-dynamic';
 
 const VALID_TYPES: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'];
-const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
+const VALID_URGENCIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 const PROMPT = `You are an emergency triage AI. Analyze this voice transcript and extract structured information.
 
@@ -70,7 +70,7 @@ async function tryGemini(transcript: string): Promise<ExtractedInfo | null> {
 
     const parsed = JSON.parse(match[0]);
     const type: IncidentType = VALID_TYPES.includes(parsed.incident_type) ? parsed.incident_type : 'MEDICAL';
-    const urgency = VALID_URGENCIES.includes(parsed.urgency) ? parsed.urgency : 'medium';
+    const urgency = VALID_URGENCIES.includes(parsed.urgency?.toUpperCase()) ? parsed.urgency.toUpperCase() : 'MEDIUM';
 
     const confidence = typeof parsed.confidence === 'number'
       ? Math.min(Math.max(0, parsed.confidence), 1)

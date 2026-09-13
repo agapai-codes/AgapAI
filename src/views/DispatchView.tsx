@@ -9,16 +9,16 @@ import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
 import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
-import { incidentToReport, toUrgencyLevel } from '../types/incident';
-import type { IncidentReport, UrgencyLevel } from '../types/incident';
+import { incidentToReport, toUrgencyLevel, sortByUrgency } from '../types/incident';
+import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
 const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
   { label: 'ALL', value: null },
-  { label: 'CRITICAL', value: 'critical' },
-  { label: 'HIGH', value: 'high' },
-  { label: 'MEDIUM', value: 'medium' },
-  { label: 'LOW', value: 'low' },
+  { label: 'CRITICAL', value: 'CRITICAL' },
+  { label: 'HIGH', value: 'HIGH' },
+  { label: 'MEDIUM', value: 'MEDIUM' },
+  { label: 'LOW', value: 'LOW' },
 ];
 
 interface Responder {
@@ -30,7 +30,7 @@ interface Responder {
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, getResponders } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, getResponders } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
@@ -39,7 +39,6 @@ export default function DispatcherDashboard() {
   const [time, setTime] = useState('');
   const [responders, setResponders] = useState<Responder[]>([]);
 
-  // Triage integration
   const { queue, triageAll } = useTriage({ incidents, sortBy: 'priority' });
 
   useEffect(() => {
@@ -51,16 +50,15 @@ export default function DispatcherDashboard() {
 
   useEffect(() => {
     getResponders().then(setResponders).catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Triage all incidents on load
   useEffect(() => {
     if (incidents.length > 0) triageAll();
   }, [incidents, triageAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const metrics = useMemo(() => ({
     total: incidents.length,
-    critical: incidents.filter(i => i.urgency === 'critical' && i.status !== 'RESOLVED').length,
+    critical: incidents.filter(i => i.urgency === 'CRITICAL' && i.status !== 'RESOLVED').length,
     dispatched: incidents.filter(i => i.status === 'DISPATCHED').length,
     resolved: incidents.filter(i => i.status === 'RESOLVED').length,
     awaitingReview: incidents.filter(i => i.status === 'PENDING' || i.status === 'REVIEWING').length,
@@ -68,14 +66,12 @@ export default function DispatcherDashboard() {
     triaged: queue.filter(q => q.dispatch_priority_score > 50).length,
   }), [incidents, queue]);
 
-  // Build score map for O(1) lookup
   const scoreMap = useMemo(() => {
     const map = new Map<string, number>();
     queue.forEach(q => map.set(q.incident_id, q.dispatch_priority_score));
     return map;
   }, [queue]);
 
-  // Filter and sort incidents
   const filtered = useMemo(() => {
     return incidents
       .filter(i => i.status !== 'RESOLVED')
@@ -100,13 +96,15 @@ export default function DispatcherDashboard() {
       });
   }, [incidents, search, selectedType, selectedUrgency, scoreMap]);
 
-  // Convert filtered incidents to IncidentReport for the map
   const reports = useMemo(() => {
     return filtered.map(inc => {
       const triageRationale = queue.find(q => q.incident_id === inc.id)?.triage_result?.urgency_reason;
       return incidentToReport(inc, triageRationale);
     });
   }, [filtered, queue]);
+
+  // Sort reports by urgency for queue display
+  const sortedReports = useMemo(() => [...reports].sort(sortByUrgency), [reports]);
 
   // Keep selected report in sync with latest data
   useEffect(() => {
@@ -117,6 +115,24 @@ export default function DispatcherDashboard() {
 
   const handleSelectIncident = (report: IncidentReport) => {
     setSelectedReport(report);
+  };
+
+  const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
+    const updated = await updateStatus(id, status);
+    if (updated) {
+      toast.success(`Incident marked ${status}`);
+    } else {
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleUrgencyOverride = async (id: string, urgency: UrgencyLevel, reason: string) => {
+    const updated = await updateUrgency(id, urgency.toLowerCase() as any, reason);
+    if (updated) {
+      toast.success(`Urgency updated to ${urgency}`);
+    } else {
+      toast.error('Failed to update urgency');
+    }
   };
 
   return (
@@ -177,10 +193,62 @@ export default function DispatcherDashboard() {
         ))}
       </div>
 
-      {/* ── MAIN WORKSPACE: MAP + DRAWER ── */}
+      {/* ── MAIN WORKSPACE: QUEUE + MAP + DETAIL PANEL ── */}
       <div className="w-full flex-1 min-h-0 flex flex-row overflow-hidden relative bg-[#0a0c10]">
 
-        {/* ═══ FULL-WIDTH MAP ═══ */}
+        {/* ═══ LEFT: INCIDENT QUEUE ═══ */}
+        <div className="w-72 shrink-0 border-r border-zinc-800/60 overflow-y-auto bg-[#0a0c10]/95">
+          <div className="p-3 border-b border-zinc-800/60 sticky top-0 bg-[#0a0c10] z-10">
+            <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">INCIDENT QUEUE</p>
+            <p className="text-[10px] text-zinc-500 mt-0.5">{sortedReports.length} active</p>
+          </div>
+          <div className="p-2 space-y-1.5">
+            {sortedReports.map(report => {
+              const isSelected = selectedReport?.id === report.id;
+              const urgStyle = {
+                CRITICAL: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+                HIGH: { color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
+                MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
+                LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+              }[report.urgency];
+
+              return (
+                <button
+                  key={report.id}
+                  onClick={() => handleSelectIncident(report)}
+                  className={`w-full text-left p-2.5 rounded-lg border transition-all ${
+                    isSelected
+                      ? 'bg-zinc-800/60 border-zinc-600/60'
+                      : 'bg-zinc-900/20 border-zinc-800/30 hover:bg-zinc-800/30 hover:border-zinc-700/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ color: urgStyle.color, background: urgStyle.bg }}>
+                      {report.urgency}
+                    </span>
+                    <span className="text-[9px] text-zinc-500 font-mono">{report.type.replace('_', ' ')}</span>
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-200 truncate">{report.condition}</p>
+                  <p className="text-[10px] text-zinc-500 truncate mt-0.5">{report.location.landmarkText}</p>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-[9px] text-zinc-600 flex items-center gap-1">
+                      <Clock size={9} /> {new Date(report.timeReported).toLocaleTimeString()}
+                    </span>
+                    <span className="text-[9px] text-zinc-600 flex items-center gap-1">
+                      👥 {report.peopleCount}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            {sortedReports.length === 0 && (
+              <p className="text-[11px] text-zinc-600 text-center py-6">No active incidents</p>
+            )}
+          </div>
+        </div>
+
+        {/* ═══ CENTER: MAP ═══ */}
         <main className="flex-1 h-full relative overflow-hidden">
           <DispatcherMap
             incidents={reports}
@@ -190,12 +258,12 @@ export default function DispatcherDashboard() {
           />
 
           {/* Floating Search & Filter Bar */}
-          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[360px]">
+          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[320px]">
             <div className="relative flex items-center w-full">
               <Search size={14} className="text-zinc-500 absolute left-3 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search incidents, conditions, locations..."
+                placeholder="Search incidents..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 aria-label="Search incidents"
@@ -236,27 +304,15 @@ export default function DispatcherDashboard() {
             </div>
             {error && <p className="text-[10px] text-red-400/80 bg-[#0d0f12]/80 backdrop-blur-xl px-2 py-1 rounded-md">{error}</p>}
           </div>
-
-          {/* Triage Queue Indicator (bottom-left) */}
-          <div className="absolute bottom-4 left-4 z-20">
-            <div className="bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg px-3 py-2 shadow-xl">
-              <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase mb-1">TRIAGE QUEUE</p>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-black text-purple-400">{queue.filter(q => q.status === 'PENDING' || q.status === 'REVIEWING').length}</span>
-                <span className="text-[9px] text-zinc-500">pending</span>
-                <span className="text-[8px] text-zinc-600">|</span>
-                <span className="text-lg font-black text-red-400">{queue.filter(q => q.dispatch_priority_score >= 70).length}</span>
-                <span className="text-[9px] text-zinc-500">high priority</span>
-              </div>
-            </div>
-          </div>
         </main>
 
-        {/* ═══ RIGHT-SIDE DRAWER ═══ */}
+        {/* ═══ RIGHT: DETAIL PANEL ═══ */}
         {selectedReport && (
           <DispatchIncidentPanel
             incident={selectedReport}
             onClose={() => setSelectedReport(null)}
+            onStatusUpdate={handleStatusUpdate}
+            onUrgencyOverride={handleUrgencyOverride}
           />
         )}
       </div>

@@ -7,7 +7,7 @@ import type { IncidentType, UrgencyLevel } from '@/types/incident';
 export const dynamic = 'force-dynamic';
 
 const VALID_TYPES: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'];
-const VALID_URGENCIES: UrgencyLevel[] = ['critical', 'high', 'medium', 'low'];
+const VALID_URGENCIES: UrgencyLevel[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 // GET /api/incidents
 export async function GET() {

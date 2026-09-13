@@ -95,7 +95,7 @@ export default function CitizenView() {
         reporter: user?.name || user?.email || 'System (SOS)',
         reporter_email: user?.email,
         coordinates: coords,
-        urgency: 'critical',
+        urgency: 'CRITICAL',
         urgency_reason: 'One-tap SOS activated',
       });
       if (result) {

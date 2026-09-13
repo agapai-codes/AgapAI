@@ -1,10 +1,20 @@
 // src/types/incident.ts
-// Unified incident types — new IncidentReport schema + backward-compatible Incident for DB
+// Unified emergency dispatch types — full IncidentReport schema + backward-compatible Incident for DB
 
-// ── NEW SCHEMA (spec) ────────────────────────────────────────────────────────
+// ── CORE ENUMS ───────────────────────────────────────────────────────────────
 
 export type IncidentType = 'MEDICAL' | 'ACCIDENT' | 'FIRE' | 'VIOLENCE' | 'NATURAL_DISASTER';
-export type UrgencyLevel = 'critical' | 'high' | 'medium' | 'low';
+export type UrgencyLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type IncidentStatus =
+  | 'PENDING'
+  | 'REVIEWING'
+  | 'PRIORITIZED'
+  | 'DISPATCHED'
+  | 'EN_ROUTE'
+  | 'ARRIVED'
+  | 'RESOLVED';
+
+// ── SUB-SCHEMAS ──────────────────────────────────────────────────────────────
 
 export interface VitalsAssessment {
   conscious: boolean | null;
@@ -12,31 +22,59 @@ export interface VitalsAssessment {
   bleeding: boolean | null;
 }
 
-export interface FirstAidGuidelines {
+export interface FirstAidProtocol {
   title: string;
   source: string;
   steps: string[];
   warnings: string[];
 }
 
+export interface AITriageAssessment {
+  assessedUrgency: UrgencyLevel;
+  confidence: number;
+  contributingFactors: string[];
+  rationaleNote: string;
+}
+
+export interface VoiceReport {
+  audioUrl?: string;
+  transcriptionText: string;
+  extractedEntities: Record<string, unknown>;
+}
+
+// ── INCIDENT REPORT (primary schema) ─────────────────────────────────────────
+
 export interface IncidentReport {
   id: string;
   type: IncidentType;
   urgency: UrgencyLevel;
   condition: string;
-  peopleCount: number;
-  locationName: string;
-  coordinates: [number, number]; // [longitude, latitude]
-  timestamp: string;
-  triageRationale: string;
-  rawTranscript?: string;
-  firstAidGuidelines?: FirstAidGuidelines;
+  injuriesSymptoms: string[];
   vitals: VitalsAssessment;
+  peopleCount: number;
+  location: {
+    landmarkText: string;
+    coordinates: [number, number]; // [lng, lat]
+    confidenceScore: number; // percentage (e.g. 95)
+  };
+  hazards: string[];
+  relevantContext: string;
+  timeReported: string;
+
+  // AI Decision Support
+  aiTriage: AITriageAssessment;
+
+  // Voice & Transcript
+  voiceReport?: VoiceReport;
+
+  // Dispatch Lifecycle
+  status: IncidentStatus;
+  assignedUnits: string[];
+  relatedReportIds: string[];
+  firstAidGuidance?: FirstAidProtocol;
 }
 
 // ── BACKWARD-COMPATIBLE (DB / legacy consumers) ──────────────────────────────
-
-export type IncidentStatus = 'PENDING' | 'REVIEWING' | 'PRIORITIZED' | 'DISPATCHED' | 'EN_ROUTE' | 'ARRIVED' | 'RESOLVED';
 
 /** Legacy incident shape used by database layer, hooks, and API routes */
 export interface Incident {
@@ -98,10 +136,17 @@ export function toIncidentType(raw: string): IncidentType {
 }
 
 export function toUrgencyLevel(raw: string | undefined): UrgencyLevel {
-  if (!raw) return 'medium';
-  const lower = raw.toLowerCase();
-  if (lower === 'critical' || lower === 'high' || lower === 'medium' || lower === 'low') return lower;
-  return 'medium';
+  if (!raw) return 'MEDIUM';
+  const upper = raw.toUpperCase();
+  if (upper === 'CRITICAL' || upper === 'HIGH' || upper === 'MEDIUM' || upper === 'LOW') return upper;
+  return 'MEDIUM';
+}
+
+export function toStatus(raw: string | undefined): IncidentStatus {
+  if (!raw) return 'PENDING';
+  const upper = raw.toUpperCase().replace(/\s+/g, '_');
+  const valid: IncidentStatus[] = ['PENDING', 'REVIEWING', 'PRIORITIZED', 'DISPATCHED', 'EN_ROUTE', 'ARRIVED', 'RESOLVED'];
+  return (valid.includes(upper as IncidentStatus) ? upper : 'PENDING') as IncidentStatus;
 }
 
 export function incidentToReport(inc: Incident, triageRationale?: string): IncidentReport {
@@ -110,17 +155,34 @@ export function incidentToReport(inc: Incident, triageRationale?: string): Incid
     type: toIncidentType(inc.type),
     urgency: toUrgencyLevel(inc.urgency),
     condition: inc.condition || inc.description || 'Under assessment',
-    peopleCount: inc.people_affected || 1,
-    locationName: inc.location,
-    coordinates: [inc.coordinates.lng, inc.coordinates.lat],
-    timestamp: inc.timestamp,
-    triageRationale: triageRationale || inc.urgency_reason || 'Standard assessment',
-    rawTranscript: inc.transcript,
+    injuriesSymptoms: inc.injuries || [],
     vitals: {
       conscious: inc.consciousness ?? null,
       breathing: inc.breathing ?? null,
       bleeding: inc.bleeding ?? null,
     },
+    peopleCount: inc.people_affected || 1,
+    location: {
+      landmarkText: inc.location,
+      coordinates: [inc.coordinates.lng, inc.coordinates.lat],
+      confidenceScore: inc.confidence != null ? Math.round(inc.confidence * 100) : 85,
+    },
+    hazards: inc.hazards || [],
+    relevantContext: inc.description || '',
+    timeReported: inc.timestamp,
+    aiTriage: {
+      assessedUrgency: toUrgencyLevel(inc.urgency),
+      confidence: inc.confidence ?? 0.7,
+      contributingFactors: inc.triage_flags || [],
+      rationaleNote: triageRationale || inc.urgency_reason || 'Standard assessment',
+    },
+    voiceReport: inc.transcript ? {
+      transcriptionText: inc.transcript,
+      extractedEntities: {},
+    } : undefined,
+    status: inc.status,
+    assignedUnits: inc.assigned_responder_name ? [inc.assigned_responder_name] : inc.recommended_unit_type || [],
+    relatedReportIds: [],
   };
 }
 
@@ -128,20 +190,90 @@ export function reportToIncident(report: IncidentReport, base?: Partial<Incident
   return {
     id: report.id,
     type: report.type,
-    location: report.locationName,
+    location: report.location.landmarkText,
     description: report.condition,
-    coordinates: { lng: report.coordinates[0], lat: report.coordinates[1] },
+    coordinates: { lng: report.location.coordinates[0], lat: report.location.coordinates[1] },
     status: base?.status || 'PENDING',
-    timestamp: report.timestamp,
+    timestamp: report.timeReported,
     reporter: base?.reporter || 'Citizen',
     urgency: report.urgency,
-    urgency_reason: report.triageRationale,
+    urgency_reason: report.aiTriage.rationaleNote,
     people_affected: report.peopleCount,
     condition: report.condition,
+    injuries: report.injuriesSymptoms,
     consciousness: report.vitals.conscious ?? undefined,
     breathing: report.vitals.breathing ?? undefined,
     bleeding: report.vitals.bleeding ?? undefined,
-    transcript: report.rawTranscript,
+    hazards: report.hazards,
+    confidence: report.aiTriage.confidence,
+    transcript: report.voiceReport?.transcriptionText,
+    assigned_responder_name: report.assignedUnits[0],
     ...base,
   };
 }
+
+// ── QUEUE UTILITIES ──────────────────────────────────────────────────────────
+
+export const URGENCY_PRIORITY: Record<UrgencyLevel, number> = {
+  CRITICAL: 100,
+  HIGH: 75,
+  MEDIUM: 50,
+  LOW: 25,
+};
+
+export const STATUS_ORDER: Record<IncidentStatus, number> = {
+  PENDING: 0,
+  REVIEWING: 1,
+  PRIORITIZED: 2,
+  DISPATCHED: 3,
+  EN_ROUTE: 4,
+  ARRIVED: 5,
+  RESOLVED: 6,
+};
+
+/** Sort incidents by urgency priority descending, then by time reported ascending */
+export function sortByUrgency(a: IncidentReport, b: IncidentReport): number {
+  const pa = URGENCY_PRIORITY[a.urgency];
+  const pb = URGENCY_PRIORITY[b.urgency];
+  if (pa !== pb) return pb - pa;
+  return new Date(a.timeReported).getTime() - new Date(b.timeReported).getTime();
+}
+
+// ── STATUS STATE MACHINE ─────────────────────────────────────────────────────
+
+const VALID_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
+  PENDING: ['REVIEWING', 'DISPATCHED', 'RESOLVED'],
+  REVIEWING: ['PRIORITIZED', 'DISPATCHED', 'RESOLVED'],
+  PRIORITIZED: ['DISPATCHED', 'RESOLVED'],
+  DISPATCHED: ['EN_ROUTE', 'RESOLVED'],
+  EN_ROUTE: ['ARRIVED', 'RESOLVED'],
+  ARRIVED: ['RESOLVED'],
+  RESOLVED: [],
+};
+
+/** Returns true if transition is allowed */
+export function canTransition(from: IncidentStatus, to: IncidentStatus): boolean {
+  return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+/** Returns the next logical status in the lifecycle */
+export function nextStatus(current: IncidentStatus): IncidentStatus | null {
+  const map: Partial<Record<IncidentStatus, IncidentStatus>> = {
+    PENDING: 'REVIEWING',
+    REVIEWING: 'PRIORITIZED',
+    PRIORITIZED: 'DISPATCHED',
+    DISPATCHED: 'EN_ROUTE',
+    EN_ROUTE: 'ARRIVED',
+  };
+  return map[current] ?? null;
+}
+
+export const STATUS_LABELS: Record<IncidentStatus, string> = {
+  PENDING: 'Pending',
+  REVIEWING: 'Reviewing',
+  PRIORITIZED: 'Prioritized',
+  DISPATCHED: 'Dispatched',
+  EN_ROUTE: 'En Route',
+  ARRIVED: 'Arrived',
+  RESOLVED: 'Resolved',
+};

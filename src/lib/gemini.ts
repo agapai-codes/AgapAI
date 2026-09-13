@@ -1,4 +1,4 @@
-const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
+const VALID_URGENCIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const VALID_INCIDENT_TYPES = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'] as const;
 
 function normalizeIncidentType(raw: string | undefined | null): string {
@@ -52,7 +52,7 @@ export async function extractEmergencyInfo(transcript: string): Promise<Extracte
   const payload = await response.json();
   const data = payload?.data ?? {};
 
-  const urgency = VALID_URGENCIES.includes(data.urgency) ? data.urgency : 'medium';
+  const urgency = VALID_URGENCIES.includes(data.urgency?.toUpperCase()) ? data.urgency.toUpperCase() : 'MEDIUM';
 
   return {
     transcript,
