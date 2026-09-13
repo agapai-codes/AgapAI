@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import {
-  X, AlertTriangle, MapPin, Users, Clock, Sparkles, Brain, Wind,
+  X, Clock, Sparkles, Brain, Wind,
   Droplets, ShieldAlert, FileText, ChevronDown, ChevronRight,
-  Activity, Stethoscope, Send, UserPlus, AlertCircle
+  Stethoscope, Send, UserPlus, AlertCircle
 } from 'lucide-react';
 import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 import { STATUS_LABELS, STATUS_ORDER, URGENCY_PRIORITY, canTransition, nextStatus } from '../types/incident';

@@ -313,6 +313,7 @@ export default function DispatcherDashboard() {
             onClose={() => setSelectedReport(null)}
             onStatusUpdate={handleStatusUpdate}
             onUrgencyOverride={handleUrgencyOverride}
+            onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
           />
         )}
       </div>
