@@ -31,39 +31,65 @@ function LoginGate({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center">
-      <div className="w-full max-w-sm mx-auto px-6">
+    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
-            <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
+          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Image src="/logo.jpg" alt="AgapAI" width={36} height={36} className="rounded-lg" />
           </div>
-          <h1 className="text-xl font-extrabold tracking-wider uppercase">
+          <h1 className="text-2xl font-extrabold tracking-wider uppercase">
             Agap<span className="text-red-500">AI</span>
           </h1>
-          <p className="text-[11px] text-neutral-500 mt-1">Sign in to the command center</p>
+          <p className="text-[12px] text-neutral-500 mt-1.5">Sign in to the command center</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <input type="email" placeholder="Dispatcher email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600 outline-none focus:border-white/20 transition-colors" />
-          </div>
-          <div>
-            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600 outline-none focus:border-white/20 transition-colors" />
-          </div>
-          {error && <p className="text-[11px] text-red-400">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full py-3 bg-white text-black font-bold text-[13px] rounded-lg transition-all hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+        {/* Form card */}
+        <div className="rounded-2xl p-6 border border-white/10 shadow-2xl"
+          style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-[10px] font-bold tracking-wider text-neutral-500 uppercase mb-1.5 block">Email</label>
+              <input type="email" placeholder="dispatcher@agapai.ph" value={email} onChange={e => setEmail(e.target.value)} required
+                autoComplete="email"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600
+                  outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition-all
+                  autofill:!bg-white/5 autofill:!text-white" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold tracking-wider text-neutral-500 uppercase mb-1.5 block">Password</label>
+              <input type="password" placeholder="Enter password" value={password} onChange={e => setPassword(e.target.value)} required
+                autoComplete="current-password"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600
+                  outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition-all
+                  autofill:!bg-white/5 autofill:!text-white" />
+            </div>
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <p className="text-[11px] text-red-400">{error}</p>
+              </div>
+            )}
+            <button type="submit" disabled={loading}
+              className="w-full py-3 bg-white text-black font-bold text-[13px] rounded-lg transition-all hover:bg-neutral-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b]">
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                  Signing in...
+                </span>
+              ) : 'Sign In'}
+            </button>
+          </form>
+        </div>
 
-        <p className="text-center mt-6 text-[10px] text-neutral-600">
-          Demo: dispatcher@agapai.ph / agapai123
-        </p>
+        {/* Demo credentials */}
+        <div className="mt-4 text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+            <span className="text-[9px] text-neutral-500">Demo</span>
+            <span className="text-[10px] text-neutral-400 font-mono">dispatcher@agapai.ph</span>
+            <span className="text-[9px] text-neutral-600">/</span>
+            <span className="text-[10px] text-neutral-400 font-mono">agapai123</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -83,10 +109,10 @@ export default function DispatcherPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#09090b', color: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: '32px', height: '32px', border: '3px solid #27272a', borderTopColor: '#fafafa', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
-          <p style={{ color: '#71717a', fontSize: '14px' }}>Loading...</p>
+      <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-neutral-700 border-t-white rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-[12px] text-neutral-500">Loading...</p>
         </div>
       </div>
     );

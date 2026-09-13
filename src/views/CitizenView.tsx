@@ -326,15 +326,15 @@ export default function CitizenView() {
 
   // ─── MAIN LANDING VIEW ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col justify-between relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col relative overflow-x-hidden sm:overflow-y-auto">
       <Toaster position="top-center" theme="dark" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(239,68,68,0.08)_0%,rgba(9,9,11,0)_60%)] pointer-events-none z-0" />
 
       {/* Header */}
-      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-6 relative z-20"
+      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4 sm:px-6 relative z-20 shrink-0"
         style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
-        <div className="flex items-center gap-3">
-          <Image src="/logo.jpg" alt="AgapAI" width={24} height={24} className="rounded-md" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Image src="/logo.jpg" alt="AgapAI" width={22} height={22} className="rounded-md" />
           <span className="font-extrabold text-sm tracking-wider uppercase">Agap<span className="text-red-500">AI</span></span>
           <span className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${
             isLive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
@@ -345,37 +345,37 @@ export default function CitizenView() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: 'live-pulse 1.5s ease-in-out infinite' }} />
-            <span className="text-[10px] text-emerald-400 font-semibold">ONLINE</span>
+            <span className="text-[10px] text-emerald-400 font-semibold hidden sm:inline">ONLINE</span>
           </div>
-          {mounted && <span className="text-[10px] text-neutral-500 font-mono">{currentTime}</span>}
+          {mounted && <span className="text-[10px] text-neutral-500 font-mono hidden sm:block">{currentTime}</span>}
         </div>
       </header>
 
-      {/* Hero + SOS */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center w-full max-w-xl mx-auto px-4 relative z-20">
+      {/* Hero + SOS — single column scrollable on mobile */}
+      <div className="flex-1 flex flex-col items-center justify-center text-center w-full max-w-xl mx-auto px-4 py-8 sm:py-0 relative z-20">
         {/* Branding */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-white mb-2 tracking-tight">Agap<span className="text-red-500">AI</span></h1>
+        <div className="mb-6 sm:mb-8 animate-fade-in">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-2 tracking-tight">Agap<span className="text-red-500">AI</span></h1>
           <p className="text-neutral-400 text-sm">Emergency Response Command Center</p>
           <p className="text-neutral-600 text-[10px] mt-1 font-mono">IEEE SumpAI 2026 — MSU-IIT</p>
         </div>
 
         {/* SOS Button — dramatic */}
-        <div className="relative flex flex-col items-center justify-center my-4">
-          <div className="absolute w-60 h-60 rounded-full border border-red-500/10" style={{ animation: 'sonar-ping 3s ease-out infinite' }} />
-          <div className="absolute w-48 h-48 rounded-full border border-red-500/20" style={{ animation: 'sonar-ping 3s ease-out infinite 1s' }} />
+        <div className="relative flex flex-col items-center justify-center my-4 sm:my-6">
+          <div className="absolute w-56 h-56 sm:w-60 sm:h-60 rounded-full border border-red-500/10" style={{ animation: 'sonar-ping 3s ease-out infinite' }} />
+          <div className="absolute w-44 h-44 sm:w-48 sm:h-48 rounded-full border border-red-500/20" style={{ animation: 'sonar-ping 3s ease-out infinite 1s' }} />
           <button
             onClick={handleSOS}
             aria-label="Emergency SOS - Tap to activate emergency beacon"
-            className="relative w-32 h-32 rounded-full bg-gradient-to-b from-[#ef4444] to-[#b91c1c] text-white text-xl font-black tracking-widest border-none cursor-pointer flex items-center justify-center z-30 transition-all active:scale-95"
+            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-b from-[#ef4444] to-[#b91c1c] text-white text-lg sm:text-xl font-black tracking-widest border-none cursor-pointer flex items-center justify-center z-30 transition-all hover:scale-105 hover:shadow-[0_0_80px_rgba(239,68,68,0.4)] active:scale-95 focus-visible:ring-4 focus-visible:ring-red-500/30"
             style={{ boxShadow: '0 0 60px rgba(239,68,68,0.3), 0 0 120px rgba(239,68,68,0.1)' }}
           >
             SOS
           </button>
         </div>
 
-        <p className="text-xs font-medium text-neutral-400 mt-4">
-          {isRecording ? 'Listening... Speak now' : 'Tap SOS for instant beacon, or use Voice Report below'}
+        <p className="text-xs font-medium text-neutral-400 mt-3 sm:mt-4">
+          {isRecording ? 'Listening... Speak now' : 'Tap SOS for instant beacon'}
         </p>
 
         {/* GPS Status */}
@@ -386,24 +386,31 @@ export default function CitizenView() {
           </p>
         )}
 
+        {/* Voice Report button — secondary action */}
+        {!transcript && !isRecording && (
+          <button onClick={() => setShowVoiceModal(true)}
+            className="mt-4 px-5 py-2.5 bg-white/5 border border-white/10 text-neutral-300 rounded-full text-[11px] font-semibold tracking-wider flex items-center gap-2 transition-all hover:bg-white/10 hover:text-white hover:border-white/20 focus-visible:ring-2 focus-visible:ring-white/20"
+            style={{ backdropFilter: 'blur(12px)' }}>
+            <Mic size={14} /> Voice Report
+          </button>
+        )}
+
         {/* Demo button */}
         {!transcript && !isRecording && (
-          <div className="mt-4 flex flex-col items-center">
+          <div className="mt-3 sm:mt-4 flex flex-col items-center">
             <button onClick={handleTryDemo}
-              className="px-4 py-2 bg-white/5 border border-white/10 text-neutral-400 rounded-full text-[10px] font-semibold tracking-wider uppercase cursor-pointer flex items-center gap-1.5 transition-all hover:bg-white/10 hover:text-white"
+              className="px-4 py-2 bg-white/5 border border-white/10 text-neutral-500 rounded-full text-[10px] font-semibold tracking-wider uppercase cursor-pointer flex items-center gap-1.5 transition-all hover:bg-white/10 hover:text-neutral-300 focus-visible:ring-2 focus-visible:ring-white/20"
               style={{ backdropFilter: 'blur(12px)' }}>
               <ChevronRight size={12} /> Launch Simulator
             </button>
-            <p className="text-[10px] text-neutral-600 mt-1.5">
-              {isDemo ? 'Demo mode: browser speech recognition' : 'Pre-filled emergency report'}
-            </p>
           </div>
         )}
 
+        {/* Transcript card — with enter animation */}
         {transcript && (
-          <div className="w-full max-w-md mt-6">
-            <div className="bg-[#18181b]/60 backdrop-blur-xl border border-zinc-800/40 shadow-2xl rounded-xl p-4">
-              <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-2">Transcript</p>
+          <div className="w-full max-w-md mt-6 animate-fade-in">
+            <div className="rounded-xl p-4 border border-white/5 shadow-2xl" style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(16px)' }}>
+              <p className="text-[10px] font-bold tracking-widest text-neutral-500 uppercase mb-2">Transcript</p>
               <p className="text-[#d4d4d8] text-sm leading-relaxed">{transcript}</p>
               {interimTranscript && (
                 <p className="text-[#52525b] text-[13px] leading-relaxed mt-1 italic">{interimTranscript.replace(transcript, '')}</p>

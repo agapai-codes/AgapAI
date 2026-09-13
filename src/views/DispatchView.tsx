@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Toaster, toast } from 'sonner';
 const DispatcherMap = dynamic(() => import('../components/DispatcherMap').then(m => m.DispatcherMap), { ssr: false });
 import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
+import { Sidebar } from '../components/Sidebar';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
@@ -43,7 +45,8 @@ const URGENCY_COLORS: Record<string, { color: string; bg: string }> = {
 };
 
 export default function DispatcherDashboard() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const router = useRouter();
   const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, resolveIncident, purge, loadDemoIncidents } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
@@ -163,9 +166,25 @@ export default function DispatcherDashboard() {
     toast.success('4 demo incidents loaded');
   };
 
+  const handleNavigate = useCallback((route: string) => {
+    if (route === 'analytics') router.push('/analytics');
+    else if (route === 'dispatcher') router.push('/dispatcher');
+  }, [router]);
+
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#09090b] text-white font-sans select-none">
+    <div className="h-screen w-screen overflow-hidden flex bg-[#09090b] text-white font-sans select-none">
       <Toaster position="top-right" theme="dark" />
+
+      {/* ── SIDEBAR ── */}
+      <Sidebar
+        activeRoute="dispatcher"
+        onNavigate={handleNavigate}
+        user={user}
+        onSignOut={signOut}
+      />
+
+      {/* ── MAIN CONTENT ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
       {/* ── HEADER (h-12, slim) ── */}
       <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4 shrink-0 z-30"
@@ -251,29 +270,30 @@ export default function DispatcherDashboard() {
             <div className="relative mt-2">
               <Search size={12} className="text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/20 transition-colors" />
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/20 focus:ring-2 focus:ring-white/10 transition-all" />
             </div>
           </div>
 
           {/* Queue cards */}
-          <div className="p-2 space-y-1">
-            {sortedReports.map(report => {
+          <div className="p-2 space-y-1.5">
+            {sortedReports.map((report, idx) => {
               const isSelected = selectedReport?.id === report.id;
               const urg = URGENCY_COLORS[report.urgency] || URGENCY_COLORS.MEDIUM;
               return (
                 <button key={report.id} onClick={() => handleSelectIncident(report)}
-                  className={`w-full text-left rounded-lg transition-all relative overflow-hidden ${
+                  className={`w-full text-left rounded-lg transition-all relative overflow-hidden animate-fade-in ${
                     isSelected
-                      ? 'bg-white/[0.06] border border-white/15'
-                      : 'bg-transparent border border-transparent hover:bg-white/[0.03] hover:border-white/5'
-                  }`}>
+                      ? 'bg-white/[0.08] border border-white/20 shadow-lg shadow-black/20'
+                      : 'bg-transparent border border-transparent hover:bg-white/[0.04] hover:border-white/8 hover:shadow-md hover:shadow-black/10'
+                  }`}
+                  style={{ animationDelay: `${idx * 30}ms` }}>
                   {/* Left accent bar */}
-                  <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg" style={{ background: urg.color }} />
+                  <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg transition-all" style={{ background: urg.color, opacity: isSelected ? 1 : 0.6 }} />
 
                   <div className="p-3 pl-4">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px]">{TYPE_ICONS[report.type] || '📋'}</span>
+                        <span className="text-[11px]">{TYPE_ICONS[report.type] || '📋'}</span>
                         <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: urg.color }}>
                           {report.urgency}
                         </span>
@@ -360,6 +380,8 @@ export default function DispatcherDashboard() {
           </div>
         )}
       </div>
+
+      </div>{/* end main content */}
     </div>
   );
 }
