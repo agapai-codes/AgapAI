@@ -8,7 +8,7 @@ import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
-import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
+import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap, MapPin } from 'lucide-react';
 import { incidentToReport, toUrgencyLevel, reportToIncident } from '../types/incident';
 import { sortByUrgencySeverity } from '../utils/queueSorting';
 import { SIMULATION_DEMO_INCIDENTS } from '../utils/incidentTestingSuite';
@@ -21,6 +21,25 @@ const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
   { label: 'MEDIUM', value: 'MEDIUM' },
   { label: 'LOW', value: 'LOW' },
 ];
+
+function timeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m ago`;
+}
+
+const TYPE_ICONS: Record<string, string> = {
+  MEDICAL: '🏥', ACCIDENT: '🚗', FIRE: '🔥', VIOLENCE: '⚠️', NATURAL_DISASTER: '🌪️',
+};
+
+const URGENCY_COLORS: Record<string, { color: string; bg: string }> = {
+  HIGH: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
+  LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+};
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
@@ -78,9 +97,9 @@ export default function DispatcherDashboard() {
         const scoreA = scoreMap.get(a.id) ?? 0;
         const scoreB = scoreMap.get(b.id) ?? 0;
         if (scoreA !== scoreB) return scoreB - scoreA;
-        const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-        const ua = order[a.urgency || 'medium'] ?? 3;
-        const ub = order[b.urgency || 'medium'] ?? 3;
+        const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
+        const ua = order[a.urgency || 'medium'] ?? 2;
+        const ub = order[b.urgency || 'medium'] ?? 2;
         if (ua !== ub) return ua - ub;
         return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       });
@@ -101,9 +120,7 @@ export default function DispatcherDashboard() {
     if (latest) setSelectedReport(latest);
   }, [reports, selectedReport?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectIncident = (report: IncidentReport) => {
-    setSelectedReport(report);
-  };
+  const handleSelectIncident = (report: IncidentReport) => setSelectedReport(report);
 
   const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
     const updated = await updateStatus(id, status);
@@ -136,97 +153,145 @@ export default function DispatcherDashboard() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#0a0c10] text-zinc-50 font-sans select-none">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#09090b] text-white font-sans select-none">
       <Toaster position="top-right" theme="dark" />
 
-      {/* ── HEADER (h-14) ── */}
-      <header className="h-14 min-h-[56px] border-b border-zinc-800/60 bg-[#0a0c10]/95 backdrop-blur-xl px-4 flex items-center justify-between shrink-0 z-30">
+      {/* ── HEADER (h-12, slim) ── */}
+      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4 shrink-0 z-30"
+        style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
+        {/* Left: Logo + Status */}
         <div className="flex items-center gap-3">
-          <Image src="/logo.jpg" alt="AgapAI" width={24} height={24} className="rounded-lg" />
-          <span className="font-black text-base tracking-widest text-zinc-100 uppercase">
+          <Image src="/logo.jpg" alt="AgapAI" width={22} height={22} className="rounded-md" />
+          <span className="font-extrabold text-sm tracking-wider text-white uppercase">
             Agap<span className="text-red-500">AI</span>
           </span>
-          <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded border"
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full"
             style={{
               background: isLive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-              color: isLive ? '#22c55e' : '#f87171',
-              borderColor: isLive ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+              border: `1px solid ${isLive ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
             }}>
-            {loading ? 'SYNCING' : isLive ? 'LIVE' : 'OFFLINE'}
-          </span>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: isLive ? '#22c55e' : '#ef4444', animation: isLive ? 'live-pulse 1.5s ease-in-out infinite' : 'none' }} />
+            <span className="text-[9px] font-bold" style={{ color: isLive ? '#22c55e' : '#ef4444' }}>
+              {loading ? 'SYNC' : isLive ? 'LIVE' : 'OFFLINE'}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[10px] font-mono">
+        {/* Center: Metrics pills */}
+        <div className="flex items-center gap-1">
           {[
-            { label: 'TOTAL', value: metrics.total, color: '#f4f4f5' },
-            { label: 'HIGH', value: metrics.critical, color: '#ef4444' },
-            { label: 'DISP', value: metrics.dispatched, color: '#60a5fa' },
-            { label: 'TRI', value: metrics.triaged, color: '#a855f7' },
-            { label: 'WAIT', value: metrics.awaitingReview, color: '#fbbf24' },
-            { label: 'UNAS', value: metrics.unassigned, color: '#f97316' },
-            { label: 'RES', value: metrics.resolved, color: '#22c55e' },
+            { label: 'TOTAL', value: metrics.total, color: '#fafafa', bg: 'rgba(255,255,255,0.05)' },
+            { label: 'HIGH', value: metrics.critical, color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
+            { label: 'DISP', value: metrics.dispatched, color: '#60a5fa', bg: 'rgba(96,165,250,0.08)' },
+            { label: 'TRI', value: metrics.triaged, color: '#a855f7', bg: 'rgba(168,85,247,0.08)' },
+            { label: 'WAIT', value: metrics.awaitingReview, color: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
+            { label: 'UNAS', value: metrics.unassigned, color: '#f97316', bg: 'rgba(249,115,22,0.08)' },
+            { label: 'RES', value: metrics.resolved, color: '#22c55e', bg: 'rgba(34,197,94,0.08)' },
           ].map(m => (
-            <div key={m.label} className="flex flex-col items-center px-1.5">
-              <span className="text-[7px] font-bold tracking-wider text-zinc-500 uppercase">{m.label}</span>
-              <span className="text-sm font-black" style={{ color: m.color }}>{m.value}</span>
+            <div key={m.label} className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: m.bg }}>
+              <span className="text-[8px] font-bold tracking-wider uppercase" style={{ color: `${m.color}99` }}>{m.label}</span>
+              <span className="text-xs font-black font-mono" style={{ color: m.color }}>{m.value}</span>
             </div>
           ))}
         </div>
 
+        {/* Right: Controls */}
         <div className="flex items-center gap-2">
           <button onClick={handlePurge} disabled={purging}
-            className="px-3 py-1.5 bg-red-950/80 hover:bg-red-900/80 text-red-300 border border-red-800/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors disabled:opacity-50">
-            {purging ? 'Purging...' : 'Reset to 0'}
+            className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md text-[9px] font-bold tracking-wider uppercase transition-all disabled:opacity-40">
+            {purging ? '...' : 'Reset'}
           </button>
           <button onClick={handleLoadDemos}
-            className="px-3 py-1.5 bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 border border-zinc-700/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors">
-            Load Demos
+            className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 rounded-md text-[9px] font-bold tracking-wider uppercase transition-all">
+            Demos
           </button>
-          {mounted && <span className="text-[10px] text-zinc-500 font-mono">{time}</span>}
-          <a href="/" className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1">
+          {user && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 border border-white/10">
+              <Shield size={10} className="text-neutral-500" />
+              <span className="text-[9px] text-neutral-400">{user.role}</span>
+            </div>
+          )}
+          {mounted && <span className="text-[10px] text-neutral-500 font-mono">{time}</span>}
+          <a href="/" className="text-[9px] text-neutral-500 hover:text-white transition-colors flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white/5">
             <ArrowLeft size={10} /> Citizen
           </a>
         </div>
       </header>
 
-      {/* ── 3-PANE BODY (CSS Grid — bulletproof) ── */}
+      {/* ── 3-PANE BODY ── */}
       <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: selectedReport ? '320px 1fr 420px' : '320px 1fr' }}>
 
         {/* ═══ PANE 1: LEFT QUEUE ═══ */}
-        <div className="min-h-0 overflow-y-auto border-r border-zinc-800/60 bg-[#0a0c10]">
-          <div className="p-3 border-b border-zinc-800/60 sticky top-0 bg-[#0a0c10] z-10">
-            <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">INCIDENT QUEUE</p>
-            <p className="text-[10px] text-zinc-500 mt-0.5">{sortedReports.length} active</p>
+        <div className="min-h-0 overflow-y-auto border-r border-white/5" style={{ background: 'rgba(9,9,11,0.6)' }}>
+          {/* Queue header */}
+          <div className="p-3 border-b border-white/5 sticky top-0 z-10" style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(12px)' }}>
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black tracking-widest text-neutral-500 uppercase">INCIDENT QUEUE</p>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-neutral-400 border border-white/10">
+                {sortedReports.length}
+              </span>
+            </div>
+            {/* Search */}
+            <div className="relative mt-2">
+              <Search size={12} className="text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-[11px] text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-white/20 transition-colors" />
+            </div>
           </div>
-          <div className="p-2 space-y-1.5">
+
+          {/* Queue cards */}
+          <div className="p-2 space-y-1">
             {sortedReports.map(report => {
               const isSelected = selectedReport?.id === report.id;
-              const urgStyle = {
-                HIGH: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-                MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
-                LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-              }[report.urgency];
+              const urg = URGENCY_COLORS[report.urgency] || URGENCY_COLORS.MEDIUM;
               return (
                 <button key={report.id} onClick={() => handleSelectIncident(report)}
-                  className={`w-full text-left p-2.5 rounded-lg border transition-all ${isSelected ? 'bg-zinc-800/60 border-zinc-600/60' : 'bg-zinc-900/20 border-zinc-800/30 hover:bg-zinc-800/30'}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: urgStyle.color, background: urgStyle.bg }}>{report.urgency}</span>
-                    <span className="text-[9px] text-zinc-500 font-mono">{report.type.replace('_', ' ')}</span>
-                  </div>
-                  <p className="text-xs font-semibold text-zinc-200 truncate">{report.condition}</p>
-                  <p className="text-[10px] text-zinc-500 truncate mt-0.5">{report.location.landmarkText}</p>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-[9px] text-zinc-600 flex items-center gap-1"><Clock size={9} /> {new Date(report.timeReported).toLocaleTimeString()}</span>
-                    <span className="text-[9px] text-zinc-600">👥 {report.peopleCount}</span>
+                  className={`w-full text-left rounded-lg transition-all relative overflow-hidden ${
+                    isSelected
+                      ? 'bg-white/[0.06] border border-white/15'
+                      : 'bg-transparent border border-transparent hover:bg-white/[0.03] hover:border-white/5'
+                  }`}>
+                  {/* Left accent bar */}
+                  <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg" style={{ background: urg.color }} />
+
+                  <div className="p-3 pl-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px]">{TYPE_ICONS[report.type] || '📋'}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: urg.color }}>
+                          {report.urgency}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-neutral-500">{timeAgo(report.timeReported)}</span>
+                    </div>
+                    <p className="text-[12px] font-semibold text-neutral-100 truncate leading-tight">{report.condition}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <MapPin size={9} className="text-neutral-600 shrink-0" />
+                      <p className="text-[10px] text-neutral-500 truncate">{report.location.landmarkText}</p>
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-[9px] text-neutral-600">{report.type.replace('_', ' ')}</span>
+                      <span className="text-[9px] text-neutral-600">👥 {report.peopleCount}</span>
+                    </div>
                   </div>
                 </button>
               );
             })}
-            {sortedReports.length === 0 && <p className="text-[11px] text-zinc-600 text-center py-8">No active incidents</p>}
+
+            {/* Empty state */}
+            {sortedReports.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 px-4">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                  <MapPin size={20} className="text-neutral-600" />
+                </div>
+                <p className="text-[11px] text-neutral-500 font-medium">No active incidents</p>
+                <p className="text-[10px] text-neutral-600 mt-1">Click "Demos" to load test data</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ═══ PANE 2: MAP (ALWAYS RENDERED) ═══ */}
+        {/* ═══ PANE 2: MAP ═══ */}
         <div className="min-h-0 min-w-0 relative">
           <DispatcherMap
             incidents={reports}
@@ -234,34 +299,40 @@ export default function DispatcherDashboard() {
             onSelectIncident={handleSelectIncident}
             isRightPanelOpen={!!selectedReport}
           />
-          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[300px]">
-            <div className="relative flex items-center w-full">
-              <Search size={14} className="text-zinc-500 absolute left-3 pointer-events-none" />
-              <input type="text" placeholder="Search incidents..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg pl-9 pr-4 py-2 text-xs font-medium text-zinc-200 placeholder-zinc-500 focus:outline-none shadow-xl" />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {ALL_TYPES.map(type => (
-                <button key={type} onClick={() => setSelectedType(type)} className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
-                  style={{ background: selectedType === type ? '#f4f4f5' : 'rgba(13,15,18,0.8)', color: selectedType === type ? '#09090b' : '#71717a', borderColor: selectedType === type ? '#f4f4f5' : 'rgba(63,63,70,0.3)' }}>
-                  {type === 'All' ? type : type.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {ALL_URGENCIES.map(u => (
-                <button key={u.label} onClick={() => setSelectedUrgency(u.value)} className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
-                  style={{ background: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(13,15,18,0.8)', color: selectedUrgency === u.value ? '#09090b' : '#71717a', borderColor: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(63,63,70,0.3)' }}>
-                  {u.label}
-                </button>
-              ))}
-            </div>
+          {/* Floating filters */}
+          <div className="absolute top-3 left-3 z-20 flex flex-wrap gap-1.5">
+            {ALL_TYPES.map(type => (
+              <button key={type} onClick={() => setSelectedType(type)}
+                className="px-2 py-1 text-[9px] font-bold tracking-wider uppercase rounded-md transition-all"
+                style={{
+                  background: selectedType === type ? 'rgba(255,255,255,0.9)' : 'rgba(9,9,11,0.7)',
+                  color: selectedType === type ? '#09090b' : '#71717a',
+                  border: `1px solid ${selectedType === type ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.08)'}`,
+                  backdropFilter: 'blur(12px)',
+                }}>
+                {type === 'All' ? type : type.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+          <div className="absolute top-3 right-14 z-20 flex flex-wrap gap-1.5">
+            {ALL_URGENCIES.map(u => (
+              <button key={u.label} onClick={() => setSelectedUrgency(u.value)}
+                className="px-2 py-1 text-[9px] font-bold tracking-wider uppercase rounded-md transition-all"
+                style={{
+                  background: selectedUrgency === u.value ? 'rgba(255,255,255,0.9)' : 'rgba(9,9,11,0.7)',
+                  color: selectedUrgency === u.value ? '#09090b' : '#71717a',
+                  border: `1px solid ${selectedUrgency === u.value ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.08)'}`,
+                  backdropFilter: 'blur(12px)',
+                }}>
+                {u.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* ═══ PANE 3: RIGHT DETAIL (conditional via grid columns) ═══ */}
+        {/* ═══ PANE 3: RIGHT DETAIL ═══ */}
         {selectedReport && (
-          <div className="min-h-0 overflow-y-auto border-l border-zinc-800/60 bg-[#0a0c10]">
+          <div className="min-h-0 overflow-y-auto border-l border-white/5">
             <DispatchIncidentPanel
               incident={selectedReport}
               onClose={() => setSelectedReport(null)}

@@ -326,73 +326,76 @@ export default function CitizenView() {
 
   // ─── MAIN LANDING VIEW ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex flex-col justify-between relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col justify-between relative overflow-x-hidden">
       <Toaster position="top-center" theme="dark" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.12)_0%,rgba(9,9,11,0)_50%)] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(239,68,68,0.08)_0%,rgba(9,9,11,0)_60%)] pointer-events-none z-0" />
 
-      <header className="h-16 border-b border-zinc-800/60 flex items-center justify-between px-6 bg-[#09090b]/80 backdrop-blur-xl relative z-20">
+      {/* Header */}
+      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-6 relative z-20"
+        style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
         <div className="flex items-center gap-3">
-          <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
-          <span className="font-bold text-lg text-[#fafafa]">Agap<span className="text-[#ef4444]">AI</span></span>
-          <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${isDemo ? 'bg-zinc-800/60 text-[#a1a1aa] border-zinc-700/40' : 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/20'}`}>
+          <Image src="/logo.jpg" alt="AgapAI" width={24} height={24} className="rounded-md" />
+          <span className="font-extrabold text-sm tracking-wider uppercase">Agap<span className="text-red-500">AI</span></span>
+          <span className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+            isLive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
+          }`}>
             {APP_MODE.toUpperCase()}
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="relative inline-flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-[#4ade80] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22c55e]" />
-            </span>
-            <span className="text-[#22c55e] text-xs font-semibold">ONLINE</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: 'live-pulse 1.5s ease-in-out infinite' }} />
+            <span className="text-[10px] text-emerald-400 font-semibold">ONLINE</span>
           </div>
-          {mounted && <span className="text-[#71717a] text-sm font-mono">{currentTime}</span>}
+          {mounted && <span className="text-[10px] text-neutral-500 font-mono">{currentTime}</span>}
         </div>
       </header>
 
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center w-full max-w-xl mx-auto px-4 relative z-20">
-        <div className="mb-10">
-          <h1 className="text-5xl font-bold text-[#fafafa] mb-3 tracking-tight">Agap<span className="text-[#ef4444]">AI</span></h1>
-          <p className="text-[#a1a1aa] text-lg">Emergency Response Command Center</p>
-          <p className="text-[#52525b] text-sm mt-2">IEEE SumpAI 2026 — MSU-IIT</p>
+      {/* Hero + SOS */}
+      <div className="flex-1 flex flex-col items-center justify-center text-center w-full max-w-xl mx-auto px-4 relative z-20">
+        {/* Branding */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-extrabold text-white mb-2 tracking-tight">Agap<span className="text-red-500">AI</span></h1>
+          <p className="text-neutral-400 text-sm">Emergency Response Command Center</p>
+          <p className="text-neutral-600 text-[10px] mt-1 font-mono">IEEE SumpAI 2026 — MSU-IIT</p>
         </div>
 
-        {/* SOS Button */}
-        <div className="relative flex flex-col items-center justify-center my-6">
-          <div className="absolute w-56 h-56 rounded-full border border-[#ef4444]/10 animate-ping" style={{ animationDuration: '4s' }} />
-          <div className="absolute w-48 h-48 rounded-full border border-[#ef4444]/30 animate-ping" style={{ animationDuration: '2.5s' }} />
+        {/* SOS Button — dramatic */}
+        <div className="relative flex flex-col items-center justify-center my-4">
+          <div className="absolute w-60 h-60 rounded-full border border-red-500/10" style={{ animation: 'sonar-ping 3s ease-out infinite' }} />
+          <div className="absolute w-48 h-48 rounded-full border border-red-500/20" style={{ animation: 'sonar-ping 3s ease-out infinite 1s' }} />
           <button
             onClick={handleSOS}
             aria-label="Emergency SOS - Tap to activate emergency beacon"
-            className="relative w-36 h-36 rounded-full bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-[#fafafa] text-2xl font-black tracking-widest border-none cursor-pointer flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.3)] z-30 transition-transform active:scale-95"
+            className="relative w-32 h-32 rounded-full bg-gradient-to-b from-[#ef4444] to-[#b91c1c] text-white text-xl font-black tracking-widest border-none cursor-pointer flex items-center justify-center z-30 transition-all active:scale-95"
+            style={{ boxShadow: '0 0 60px rgba(239,68,68,0.3), 0 0 120px rgba(239,68,68,0.1)' }}
           >
             SOS
           </button>
         </div>
 
-        <p className="text-sm font-semibold tracking-wide text-[#a1a1aa] mt-6">
+        <p className="text-xs font-medium text-neutral-400 mt-4">
           {isRecording ? 'Listening... Speak now' : 'Tap SOS for instant beacon, or use Voice Report below'}
         </p>
 
+        {/* GPS Status */}
         {gpsStatus !== 'idle' && (
-          <p className={`text-[11px] mt-1 flex items-center gap-1 ${gpsStatus === 'ready' ? 'text-[#22c55e]' : gpsStatus === 'loading' ? 'text-[#eab308]' : 'text-[#f87171]'}`}>
-            <MapPin size={12} />
+          <p className={`text-[10px] mt-1.5 flex items-center gap-1 font-mono ${gpsStatus === 'ready' ? 'text-emerald-400' : gpsStatus === 'loading' ? 'text-amber-400' : 'text-red-400'}`}>
+            <MapPin size={10} />
             {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'Using approximate location'}
           </p>
         )}
 
+        {/* Demo button */}
         {!transcript && !isRecording && (
           <div className="mt-4 flex flex-col items-center">
-            <button
-              onClick={handleTryDemo}
-              className="px-4 py-2 bg-zinc-900/40 border border-zinc-800/80 text-[#71717a] rounded-full text-xs font-semibold tracking-widest uppercase backdrop-blur-xl cursor-pointer flex items-center gap-1.5 shadow-md transition-all hover:bg-zinc-800/40"
-            >
-              <ChevronRight size={14} /> Launch Simulator
+            <button onClick={handleTryDemo}
+              className="px-4 py-2 bg-white/5 border border-white/10 text-neutral-400 rounded-full text-[10px] font-semibold tracking-wider uppercase cursor-pointer flex items-center gap-1.5 transition-all hover:bg-white/10 hover:text-white"
+              style={{ backdropFilter: 'blur(12px)' }}>
+              <ChevronRight size={12} /> Launch Simulator
             </button>
-            <p className="text-[11px] text-[#3f3f46] mt-2 font-light">
-              {isDemo
-                ? 'Demo mode uses browser speech recognition and keyword-based extraction'
-                : 'Pre-filled emergency report for demonstration'}
+            <p className="text-[10px] text-neutral-600 mt-1.5">
+              {isDemo ? 'Demo mode: browser speech recognition' : 'Pre-filled emergency report'}
             </p>
           </div>
         )}
@@ -469,19 +472,23 @@ export default function CitizenView() {
 
       {/* Feature cards */}
       {!transcript && !isRecording && (
-        <div className="grid grid-cols-2 gap-6 w-full max-w-2xl mx-auto px-6 pb-12 relative z-20">
+        <div className="grid grid-cols-2 gap-4 w-full max-w-md mx-auto px-6 pb-12 relative z-20">
           {[
-            { icon: <Zap size={20} />, title: 'Tap SOS', desc: 'Instant emergency activation with one touch', status: 'READY', color: '#ef4444', onClick: handleSOS },
-            { icon: <Mic size={20} />, title: 'Voice Report', desc: 'Speak naturally — AI converts your words into a structured report', status: 'READY', color: '#3b82f6', onClick: () => setShowVoiceModal(true) },
+            { icon: <Zap size={18} />, title: 'Tap SOS', desc: 'Instant emergency activation', color: '#ef4444', onClick: handleSOS },
+            { icon: <Mic size={18} />, title: 'Voice Report', desc: 'Speak naturally — AI converts to report', color: '#3b82f6', onClick: () => setShowVoiceModal(true) },
           ].map((f) => (
             <div key={f.title} onClick={f.onClick} role="button" tabIndex={0} aria-label={f.title}
               onKeyDown={e => e.key === 'Enter' && f.onClick()}
-              className="bg-[#18181b]/60 border border-zinc-800/40 rounded-xl p-5 flex flex-col justify-between min-h-[130px] text-left cursor-pointer transition-all relative hover:border-zinc-700/40">
-              <span className="absolute top-4 right-4 text-[10px] font-bold tracking-widest uppercase text-[#4ade80] bg-[#22c55e]/10 px-2 py-0.5 rounded-full border border-[#22c55e]/20">{f.status}</span>
+              className="rounded-xl p-4 flex flex-col justify-between min-h-[100px] text-left cursor-pointer transition-all"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                backdropFilter: 'blur(12px)',
+              }}>
               <div>
-                <div className="w-10 h-10 rounded-lg bg-zinc-800/80 flex items-center justify-center mb-4" style={{ color: f.color }}>{f.icon}</div>
-                <h3 className="text-base font-bold text-[#f4f4f5] mb-1">{f.title}</h3>
-                <p className="text-xs text-[#a1a1aa] leading-relaxed m-0">{f.desc}</p>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ background: `${f.color}15`, color: f.color }}>{f.icon}</div>
+                <h3 className="text-[13px] font-bold text-white mb-0.5">{f.title}</h3>
+                <p className="text-[11px] text-neutral-500 leading-relaxed m-0">{f.desc}</p>
               </div>
             </div>
           ))}

@@ -79,6 +79,14 @@ const config: Config = {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        "pin-drop": {
+          "0%": { transform: "translateY(-20px) scale(0.8)", opacity: "0" },
+          "60%": { transform: "translateY(2px) scale(1.05)", opacity: "1" },
+          "100%": { transform: "translateY(0) scale(1)", opacity: "1" },
+        },
+        "confidence-fill": {
+          from: { width: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -88,6 +96,8 @@ const config: Config = {
         "live-pulse": "live-pulse 1.5s ease-in-out infinite",
         "slide-up": "slide-up 0.4s ease-out forwards",
         "fade-in": "fade-in 0.3s ease-out forwards",
+        "pin-drop": "pin-drop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+        "confidence-fill": "confidence-fill 1s ease-out forwards",
       },
     },
   },
