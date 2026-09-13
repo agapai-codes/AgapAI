@@ -232,13 +232,6 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       markersRef.current.push(marker);
       popupsRef.current.push(popup);
     });
-
-    // Auto-fit bounds across all incidents
-    if (spiderified.length > 0) {
-      const bounds = new maplibregl.LngLatBounds();
-      spiderified.forEach((inc) => bounds.extend(inc.displayCoords));
-      map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 1000 });
-    }
   }, [incidents, selectedIncident]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

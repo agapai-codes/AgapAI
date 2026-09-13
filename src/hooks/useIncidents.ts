@@ -46,6 +46,7 @@ export function useIncidents() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const isMounted = useRef(true);
   const inFlight = useRef(false);
+  const demoIdsRef = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
@@ -59,7 +60,10 @@ export function useIncidents() {
       if (!isMounted.current) return;
       setIncidents((prev) => {
         const apiIds = new Set(payload.data!.map((i) => i.id));
-        const localOnly = prev.filter((i) => i.id.startsWith('local-') && !apiIds.has(i.id));
+        const preserved = prev.filter(
+          (i) => i.id.startsWith('local-') || demoIdsRef.current.has(i.id)
+        );
+        const localOnly = preserved.filter((i) => !apiIds.has(i.id));
         return [...localOnly, ...payload.data!];
       });
       setError(null);
@@ -275,6 +279,7 @@ export function useIncidents() {
       if (!res.ok || !payload.success) {
         throw new Error(payload.error || 'Purge failed');
       }
+      demoIdsRef.current.clear();
       setIncidents([]);
       return true;
     } catch (err) {
@@ -284,6 +289,7 @@ export function useIncidents() {
   }, []);
 
   const loadDemoIncidents = useCallback((demoIncidents: Incident[]) => {
+    demoIncidents.forEach((d) => demoIdsRef.current.add(d.id));
     setIncidents(demoIncidents);
   }, []);
 

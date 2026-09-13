@@ -9,9 +9,8 @@ import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
 import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
-import { incidentToReport, toUrgencyLevel, sortByUrgency } from '../types/incident';
+import { incidentToReport, toUrgencyLevel, sortByUrgency, reportToIncident } from '../types/incident';
 import { SIMULATION_DEMO_INCIDENTS } from '../utils/incidentTestingSuite';
-import { reportToIncident } from '../types/incident';
 import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
@@ -108,20 +107,14 @@ export default function DispatcherDashboard() {
 
   const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
     const updated = await updateStatus(id, status);
-    if (updated) {
-      toast.success(`Incident marked ${status}`);
-    } else {
-      toast.error('Failed to update status');
-    }
+    if (updated) toast.success(`Incident marked ${status}`);
+    else toast.error('Failed to update status');
   };
 
   const handleUrgencyOverride = async (id: string, urgency: UrgencyLevel, reason: string) => {
     const updated = await updateUrgency(id, urgency.toLowerCase() as any, reason);
-    if (updated) {
-      toast.success(`Urgency updated to ${urgency}`);
-    } else {
-      toast.error('Failed to update urgency');
-    }
+    if (updated) toast.success(`Urgency updated to ${urgency}`);
+    else toast.error('Failed to update urgency');
   };
 
   const handlePurge = async () => {
@@ -131,9 +124,7 @@ export default function DispatcherDashboard() {
       await purge();
       setSelectedReport(null);
       toast.success('All incidents purged');
-    } catch {
-      toast.error('Failed to purge');
-    }
+    } catch { toast.error('Failed to purge'); }
     setPurging(false);
   };
 
@@ -145,11 +136,11 @@ export default function DispatcherDashboard() {
   };
 
   return (
-    <div className="w-screen h-screen bg-[#0a0c10] text-zinc-50 flex flex-col overflow-hidden font-sans select-none">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#0a0c10] text-zinc-50 font-sans select-none">
       <Toaster position="top-right" theme="dark" />
 
-      {/* ── TOP BAR (h-14) ── */}
-      <header className="w-full h-14 min-h-[56px] border-b border-zinc-800/60 bg-[#0a0c10]/95 backdrop-blur-xl px-4 flex items-center justify-between shrink-0 z-30">
+      {/* ── HEADER (h-14) ── */}
+      <header className="h-14 min-h-[56px] border-b border-zinc-800/60 bg-[#0a0c10]/95 backdrop-blur-xl px-4 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
           <Image src="/logo.jpg" alt="AgapAI" width={24} height={24} className="rounded-lg" />
           <span className="font-black text-base tracking-widest text-zinc-100 uppercase">
@@ -165,8 +156,7 @@ export default function DispatcherDashboard() {
           </span>
         </div>
 
-        {/* ── METRICS (inline in top bar) ── */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-3 text-[10px] font-mono">
           {[
             { label: 'TOTAL', value: metrics.total, color: '#f4f4f5' },
             { label: 'CRIT', value: metrics.critical, color: '#ef4444' },
@@ -176,26 +166,20 @@ export default function DispatcherDashboard() {
             { label: 'UNAS', value: metrics.unassigned, color: '#f97316' },
             { label: 'RES', value: metrics.resolved, color: '#22c55e' },
           ].map(m => (
-            <div key={m.label} className="flex flex-col items-center px-2">
-              <span className="text-[7px] font-black tracking-widest text-zinc-500 uppercase">{m.label}</span>
+            <div key={m.label} className="flex flex-col items-center px-1.5">
+              <span className="text-[7px] font-bold tracking-wider text-zinc-500 uppercase">{m.label}</span>
               <span className="text-sm font-black" style={{ color: m.color }}>{m.value}</span>
             </div>
           ))}
         </div>
 
-        {/* ── CONTROLS ── */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePurge}
-            disabled={purging}
-            className="px-3 py-1.5 bg-red-950/80 hover:bg-red-900/80 text-red-300 border border-red-800/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors disabled:opacity-50"
-          >
+          <button onClick={handlePurge} disabled={purging}
+            className="px-3 py-1.5 bg-red-950/80 hover:bg-red-900/80 text-red-300 border border-red-800/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors disabled:opacity-50">
             {purging ? 'Purging...' : 'Reset to 0'}
           </button>
-          <button
-            onClick={handleLoadDemos}
-            className="px-3 py-1.5 bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 border border-zinc-700/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors"
-          >
+          <button onClick={handleLoadDemos}
+            className="px-3 py-1.5 bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 border border-zinc-700/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors">
             Load Demos
           </button>
           {mounted && <span className="text-[10px] text-zinc-500 font-mono">{time}</span>}
@@ -205,11 +189,11 @@ export default function DispatcherDashboard() {
         </div>
       </header>
 
-      {/* ── MAIN 3-PANE WORKSPACE ── */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* ── 3-PANE BODY (CSS Grid — bulletproof) ── */}
+      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: selectedReport ? '320px 1fr 420px' : '320px 1fr' }}>
 
-        {/* ═══ LEFT: INCIDENT QUEUE (w-80) ═══ */}
-        <div className="w-80 shrink-0 border-r border-zinc-800/60 overflow-y-auto bg-[#0a0c10] min-w-0">
+        {/* ═══ PANE 1: LEFT QUEUE ═══ */}
+        <div className="min-h-0 overflow-y-auto border-r border-zinc-800/60 bg-[#0a0c10]">
           <div className="p-3 border-b border-zinc-800/60 sticky top-0 bg-[#0a0c10] z-10">
             <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">INCIDENT QUEUE</p>
             <p className="text-[10px] text-zinc-500 mt-0.5">{sortedReports.length} active</p>
@@ -223,86 +207,52 @@ export default function DispatcherDashboard() {
                 MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
                 LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
               }[report.urgency];
-
               return (
-                <button
-                  key={report.id}
-                  onClick={() => handleSelectIncident(report)}
-                  className={`w-full text-left p-2.5 rounded-lg border transition-all ${
-                    isSelected
-                      ? 'bg-zinc-800/60 border-zinc-600/60'
-                      : 'bg-zinc-900/20 border-zinc-800/30 hover:bg-zinc-800/30 hover:border-zinc-700/40'
-                  }`}
-                >
+                <button key={report.id} onClick={() => handleSelectIncident(report)}
+                  className={`w-full text-left p-2.5 rounded-lg border transition-all ${isSelected ? 'bg-zinc-800/60 border-zinc-600/60' : 'bg-zinc-900/20 border-zinc-800/30 hover:bg-zinc-800/30'}`}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                      style={{ color: urgStyle.color, background: urgStyle.bg }}>
-                      {report.urgency}
-                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: urgStyle.color, background: urgStyle.bg }}>{report.urgency}</span>
                     <span className="text-[9px] text-zinc-500 font-mono">{report.type.replace('_', ' ')}</span>
                   </div>
                   <p className="text-xs font-semibold text-zinc-200 truncate">{report.condition}</p>
                   <p className="text-[10px] text-zinc-500 truncate mt-0.5">{report.location.landmarkText}</p>
                   <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-[9px] text-zinc-600 flex items-center gap-1">
-                      <Clock size={9} /> {new Date(report.timeReported).toLocaleTimeString()}
-                    </span>
-                    <span className="text-[9px] text-zinc-600 flex items-center gap-1">
-                      👥 {report.peopleCount}
-                    </span>
+                    <span className="text-[9px] text-zinc-600 flex items-center gap-1"><Clock size={9} /> {new Date(report.timeReported).toLocaleTimeString()}</span>
+                    <span className="text-[9px] text-zinc-600">👥 {report.peopleCount}</span>
                   </div>
                 </button>
               );
             })}
-            {sortedReports.length === 0 && (
-              <p className="text-[11px] text-zinc-600 text-center py-8">No active incidents</p>
-            )}
+            {sortedReports.length === 0 && <p className="text-[11px] text-zinc-600 text-center py-8">No active incidents</p>}
           </div>
         </div>
 
-        {/* ═══ CENTER: MAP (flex-1) ═══ */}
-        <div className="flex-1 min-w-0 relative h-full">
+        {/* ═══ PANE 2: MAP (ALWAYS RENDERED) ═══ */}
+        <div className="min-h-0 min-w-0 relative">
           <DispatcherMap
             incidents={reports}
             selectedIncident={selectedReport}
             onSelectIncident={handleSelectIncident}
             isRightPanelOpen={!!selectedReport}
           />
-
-          {/* Floating Search & Filters */}
           <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[300px]">
             <div className="relative flex items-center w-full">
               <Search size={14} className="text-zinc-500 absolute left-3 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search incidents..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg pl-9 pr-4 py-2 text-xs font-medium text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 shadow-xl"
-              />
+              <input type="text" placeholder="Search incidents..." value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg pl-9 pr-4 py-2 text-xs font-medium text-zinc-200 placeholder-zinc-500 focus:outline-none shadow-xl" />
             </div>
             <div className="flex flex-wrap gap-1.5">
               {ALL_TYPES.map(type => (
-                <button key={type} onClick={() => setSelectedType(type)}
-                  className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
-                  style={{
-                    background: selectedType === type ? '#f4f4f5' : 'rgba(13,15,18,0.8)',
-                    color: selectedType === type ? '#09090b' : '#71717a',
-                    borderColor: selectedType === type ? '#f4f4f5' : 'rgba(63,63,70,0.3)',
-                  }}>
+                <button key={type} onClick={() => setSelectedType(type)} className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
+                  style={{ background: selectedType === type ? '#f4f4f5' : 'rgba(13,15,18,0.8)', color: selectedType === type ? '#09090b' : '#71717a', borderColor: selectedType === type ? '#f4f4f5' : 'rgba(63,63,70,0.3)' }}>
                   {type === 'All' ? type : type.replace('_', ' ')}
                 </button>
               ))}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {ALL_URGENCIES.map(u => (
-                <button key={u.label} onClick={() => setSelectedUrgency(u.value)}
-                  className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
-                  style={{
-                    background: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(13,15,18,0.8)',
-                    color: selectedUrgency === u.value ? '#09090b' : '#71717a',
-                    borderColor: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(63,63,70,0.3)',
-                  }}>
+                <button key={u.label} onClick={() => setSelectedUrgency(u.value)} className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
+                  style={{ background: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(13,15,18,0.8)', color: selectedUrgency === u.value ? '#09090b' : '#71717a', borderColor: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(63,63,70,0.3)' }}>
                   {u.label}
                 </button>
               ))}
@@ -310,15 +260,17 @@ export default function DispatcherDashboard() {
           </div>
         </div>
 
-        {/* ═══ RIGHT: DETAIL PANEL (w-[420px]) ═══ */}
+        {/* ═══ PANE 3: RIGHT DETAIL (conditional via grid columns) ═══ */}
         {selectedReport && (
-          <DispatchIncidentPanel
-            incident={selectedReport}
-            onClose={() => setSelectedReport(null)}
-            onStatusUpdate={handleStatusUpdate}
-            onUrgencyOverride={handleUrgencyOverride}
-            onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
-          />
+          <div className="min-h-0 overflow-y-auto border-l border-zinc-800/60 bg-[#0a0c10]">
+            <DispatchIncidentPanel
+              incident={selectedReport}
+              onClose={() => setSelectedReport(null)}
+              onStatusUpdate={handleStatusUpdate}
+              onUrgencyOverride={handleUrgencyOverride}
+              onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
+            />
+          </div>
         )}
       </div>
     </div>
