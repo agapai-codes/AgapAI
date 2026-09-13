@@ -5,24 +5,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 
 interface UrgencyBadgeProps {
-  urgency: 'critical' | 'high' | 'medium' | 'low';
+  urgency: 'high' | 'medium' | 'low';
   reason?: string;
   size?: 'sm' | 'md' | 'lg';
 }
 
 const urgencyConfig = {
-  critical: {
-    className: 'bg-[#DC2626] text-white border-[#DC2626]',
-    label: 'CRITICAL',
-    icon: '●'
-  },
   high: {
-    className: 'bg-[#F59E0B] text-[#080C14] border-[#F59E0B]',
+    className: 'bg-[#DC2626] text-white border-[#DC2626]',
     label: 'HIGH',
     icon: '●'
   },
   medium: {
-    className: 'bg-[#3B82F6] text-white border-[#3B82F6]',
+    className: 'bg-[#F59E0B] text-[#080C14] border-[#F59E0B]',
     label: 'MEDIUM',
     icon: '●'
   },
@@ -45,8 +40,7 @@ export default function UrgencyBadge({ urgency, reason, size = 'md' }: UrgencyBa
       className={cn(
         "font-bold rounded-none gap-1 mono tracking-wider",
         config.className,
-        sizeClasses,
-        urgency === 'critical' && "critical-pulse"
+        sizeClasses
       )}
     >
       <span>{config.icon}</span>

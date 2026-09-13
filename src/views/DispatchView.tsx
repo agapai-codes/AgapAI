@@ -17,7 +17,6 @@ import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/inci
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
 const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
   { label: 'ALL', value: null },
-  { label: 'CRITICAL', value: 'CRITICAL' },
   { label: 'HIGH', value: 'HIGH' },
   { label: 'MEDIUM', value: 'MEDIUM' },
   { label: 'LOW', value: 'LOW' },
@@ -49,7 +48,7 @@ export default function DispatcherDashboard() {
 
   const metrics = useMemo(() => ({
     total: incidents.length,
-    critical: incidents.filter(i => i.urgency === 'CRITICAL' && i.status !== 'RESOLVED').length,
+    critical: incidents.filter(i => i.urgency === 'HIGH' && i.status !== 'RESOLVED').length,
     dispatched: incidents.filter(i => i.status === 'DISPATCHED').length,
     resolved: incidents.filter(i => i.status === 'RESOLVED').length,
     awaitingReview: incidents.filter(i => i.status === 'PENDING' || i.status === 'REVIEWING').length,
@@ -160,7 +159,7 @@ export default function DispatcherDashboard() {
         <div className="flex items-center gap-3 text-[10px] font-mono">
           {[
             { label: 'TOTAL', value: metrics.total, color: '#f4f4f5' },
-            { label: 'CRIT', value: metrics.critical, color: '#ef4444' },
+            { label: 'HIGH', value: metrics.critical, color: '#ef4444' },
             { label: 'DISP', value: metrics.dispatched, color: '#60a5fa' },
             { label: 'TRI', value: metrics.triaged, color: '#a855f7' },
             { label: 'WAIT', value: metrics.awaitingReview, color: '#fbbf24' },
@@ -203,8 +202,7 @@ export default function DispatcherDashboard() {
             {sortedReports.map(report => {
               const isSelected = selectedReport?.id === report.id;
               const urgStyle = {
-                CRITICAL: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-                HIGH: { color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
+                HIGH: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
                 MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
                 LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
               }[report.urgency];

@@ -45,9 +45,8 @@ export default function ReportCard({ report, isSelected, onUpdateStatus }: Repor
         <div className="flex items-center gap-2">
           <Badge className={cn(
             "text-[10px] font-bold rounded-none mono",
-            report.urgency === 'critical' ? 'bg-[#DC2626] text-white' :
-            report.urgency === 'high' ? 'bg-[#F59E0B] text-[#080C14]' :
-            report.urgency === 'medium' ? 'bg-[#3B82F6] text-white' :
+            report.urgency === 'high' ? 'bg-[#DC2626] text-white' :
+            report.urgency === 'medium' ? 'bg-[#F59E0B] text-[#080C14]' :
             'bg-[#10B981] text-white'
           )}>
             {report.urgency.toUpperCase()}

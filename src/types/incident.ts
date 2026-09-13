@@ -4,7 +4,7 @@
 // ── CORE ENUMS ───────────────────────────────────────────────────────────────
 
 export type IncidentType = 'MEDICAL' | 'ACCIDENT' | 'FIRE' | 'VIOLENCE' | 'NATURAL_DISASTER';
-export type UrgencyLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type UrgencyLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type IncidentStatus =
   | 'PENDING'
   | 'REVIEWING'
@@ -138,8 +138,9 @@ export function toIncidentType(raw: string): IncidentType {
 export function toUrgencyLevel(raw: string | undefined): UrgencyLevel {
   if (!raw) return 'MEDIUM';
   const upper = raw.toUpperCase();
-  if (upper === 'CRITICAL' || upper === 'HIGH' || upper === 'MEDIUM' || upper === 'LOW') return upper;
-  return 'MEDIUM';
+  if (upper === 'CRITICAL' || upper === 'HIGH') return 'HIGH';
+  if (upper === 'MEDIUM') return 'MEDIUM';
+  return 'LOW';
 }
 
 export function toStatus(raw: string | undefined): IncidentStatus {
@@ -215,8 +216,7 @@ export function reportToIncident(report: IncidentReport, base?: Partial<Incident
 // ── QUEUE UTILITIES ──────────────────────────────────────────────────────────
 
 export const URGENCY_PRIORITY: Record<UrgencyLevel, number> = {
-  CRITICAL: 100,
-  HIGH: 75,
+  HIGH: 100,
   MEDIUM: 50,
   LOW: 25,
 };

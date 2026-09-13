@@ -18,7 +18,7 @@ export const SIMULATION_DEMO_INCIDENTS: IncidentReport[] = [
   {
     id: 'INC-SIM-001',
     type: 'MEDICAL',
-    urgency: 'CRITICAL',
+    urgency: 'HIGH',
     condition: 'Unconscious, severe external bleeding from head injury',
     injuriesSymptoms: ['Unconscious', 'Profuse Bleeding', 'Head Trauma'],
     vitals: { conscious: false, breathing: true, bleeding: true },
@@ -32,7 +32,7 @@ export const SIMULATION_DEMO_INCIDENTS: IncidentReport[] = [
     relevantContext: 'Citizen slipped on stairs, hit temple, unconscious.',
     timeReported: new Date(Date.now() - 3 * 60000).toISOString(),
     aiTriage: {
-      assessedUrgency: 'CRITICAL',
+      assessedUrgency: 'HIGH',
       confidence: 0.96,
       contributingFactors: ['Unconsciousness', 'Active head bleeding'],
       rationaleNote: 'Life-threatening indicators detected: immediate hemorrhage control needed.',

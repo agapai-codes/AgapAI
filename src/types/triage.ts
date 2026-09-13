@@ -3,7 +3,6 @@ import type { IncidentType, UrgencyLevel } from './incident';
 // Priority weights for queue scoring
 export const PRIORITY_WEIGHTS = {
   urgency: {
-    CRITICAL: 4.0,
     HIGH: 3.0,
     MEDIUM: 2.0,
     LOW: 1.0,
@@ -76,4 +75,4 @@ export interface QueueItem {
 
 // Queue sort options
 export type QueueSortBy = 'priority' | 'time' | 'type' | 'urgency';
-export type QueueFilterBy = 'all' | 'pending' | 'dispatched' | 'critical';
+export type QueueFilterBy = 'all' | 'pending' | 'dispatched' | 'high';

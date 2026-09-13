@@ -67,8 +67,7 @@ function applySpiderifyJitter(
 }
 
 const URGENCY_COLORS: Record<string, string> = {
-  CRITICAL: '#ef4444',
-  HIGH: '#f97316',
+  HIGH: '#ef4444',
   MEDIUM: '#eab308',
   LOW: '#22c55e',
 };
@@ -195,7 +194,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       el.innerText = inc.type[0] || '!';
 
       // Urgency pulse for critical
-      if (inc.urgency === 'CRITICAL') {
+      if (inc.urgency === 'HIGH') {
         const ping = document.createElement('div');
         ping.style.cssText = `position: absolute; width: ${size}px; height: ${size}px; border-radius: 50%; background: ${color}; opacity: 0.4; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;`;
         el.style.position = 'relative';

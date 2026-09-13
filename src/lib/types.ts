@@ -8,7 +8,7 @@ export interface EmergencyReport {
   longitude: number | null;
   people_affected: number;
   hazards: string[];
-  urgency: 'critical' | 'high' | 'medium' | 'low';
+  urgency: 'high' | 'medium' | 'low';
   urgency_reason: string;
   first_aid: string;
   timestamp: Date;

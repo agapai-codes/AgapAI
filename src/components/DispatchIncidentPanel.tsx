@@ -18,8 +18,7 @@ interface DispatchIncidentPanelProps {
 }
 
 const URGENCY_STYLE: Record<UrgencyLevel, { color: string; bg: string; border: string }> = {
-  CRITICAL: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.4)' },
-  HIGH: { color: '#f97316', bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.4)' },
+  HIGH: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.4)' },
   MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.4)' },
   LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.4)' },
 };
@@ -421,7 +420,6 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
                     className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-neutral-200 outline-none"
                   >
                     <option value="">Select...</option>
-                    <option value="CRITICAL">CRITICAL</option>
                     <option value="HIGH">HIGH</option>
                     <option value="MEDIUM">MEDIUM</option>
                     <option value="LOW">LOW</option>

@@ -66,8 +66,8 @@ export function useTriage({ incidents, sortBy = 'priority', filterBy = 'all' }: 
       filtered = filtered.filter(i => i.status === 'PENDING' || i.status === 'REVIEWING');
     } else if (filterBy === 'dispatched') {
       filtered = filtered.filter(i => ['DISPATCHED', 'EN_ROUTE', 'ARRIVED'].includes(i.status));
-    } else if (filterBy === 'critical') {
-      filtered = filtered.filter(i => i.urgency === 'CRITICAL' && i.status !== 'RESOLVED');
+    } else if (filterBy === 'high') {
+      filtered = filtered.filter(i => i.urgency === 'HIGH' && i.status !== 'RESOLVED');
     }
 
     // Build queue items with triage scores (recalculated with actual elapsed time)

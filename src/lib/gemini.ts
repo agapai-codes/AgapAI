@@ -1,4 +1,4 @@
-const VALID_URGENCIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+const VALID_URGENCIES = ['HIGH', 'MEDIUM', 'LOW'];
 const VALID_INCIDENT_TYPES = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'] as const;
 
 function normalizeIncidentType(raw: string | undefined | null): string {

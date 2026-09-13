@@ -38,7 +38,7 @@ function getResponseActions(
 ): ResponseAction[] {
   const actions: ResponseAction[] = [];
 
-  if (urgency === 'CRITICAL') {
+  if (urgency === 'HIGH') {
     actions.push({
       id: 'immediate_dispatch',
       label: 'Immediate Dispatch',
@@ -149,7 +149,7 @@ export function generateTriageRecommendation(
   if (peopleAffected > 3) triageFlags.push('MASS_CASUALTY');
   if (confidence < 0.5) triageFlags.push('LOW_CONFIDENCE');
 
-  const estimatedResponseTime = urgency === 'CRITICAL' ? 5 : urgency === 'HIGH' ? 10 : urgency === 'MEDIUM' ? 20 : 30;
+  const estimatedResponseTime = urgency === 'HIGH' ? 10 : urgency === 'MEDIUM' ? 20 : 30;
 
   const escalationNeeded = severity >= 7 || triageFlags.includes('MASS_CASUALTY') || triageFlags.includes('UNCONSCIOUS') || triageFlags.includes('NOT_BREATHING');
 

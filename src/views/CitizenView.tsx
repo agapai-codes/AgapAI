@@ -96,7 +96,7 @@ export default function CitizenView() {
         reporter: user?.name || user?.email || 'System (SOS)',
         reporter_email: user?.email,
         coordinates: coords,
-        urgency: 'CRITICAL',
+        urgency: 'HIGH',
         urgency_reason: 'One-tap SOS activated',
       });
       if (result) {
@@ -206,7 +206,7 @@ export default function CitizenView() {
   };
 
   const urgencyColor = (u: string) =>
-    u === 'critical' ? '#ef4444' : u === 'high' ? '#f97316' : u === 'medium' ? '#eab308' : '#22c55e';
+    u === 'high' ? '#ef4444' : u === 'medium' ? '#eab308' : '#22c55e';
 
   const extractionStepLabel: Record<ExtractionStepKey, string> = {
     'capturing-location': 'Capturing location...',
