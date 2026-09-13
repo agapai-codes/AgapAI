@@ -107,9 +107,9 @@ export default function DispatcherDashboard() {
         const scoreA = scoreMap.get(a.id) ?? 0;
         const scoreB = scoreMap.get(b.id) ?? 0;
         if (scoreA !== scoreB) return scoreB - scoreA;
-        const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
-        const ua = order[a.urgency || 'medium'] ?? 2;
-        const ub = order[b.urgency || 'medium'] ?? 2;
+        const order: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+        const ua = order[a.urgency?.toUpperCase() || 'MEDIUM'] ?? 3;
+        const ub = order[b.urgency?.toUpperCase() || 'MEDIUM'] ?? 3;
         if (ua !== ub) return ua - ub;
         return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
       });
@@ -301,10 +301,12 @@ export default function DispatcherDashboard() {
         </div>
       </header>
 
-      {/* ── 3-PANE BODY ── */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Left Queue — always visible on desktop, hidden on mobile when detail panel open */}
-        <div className={`${selectedReport ? 'hidden lg:block' : 'block'} w-full lg:w-80 shrink-0 border-r border-white/5 overflow-y-auto`}
+      {/* ── 3-PANE BODY (CSS Grid) ── */}
+      <div className="flex-1 min-h-0 overflow-hidden grid"
+        style={{ gridTemplateColumns: selectedReport ? '320px 1fr 420px' : '320px 1fr' }}>
+
+        {/* ═══ PANE 1: LEFT QUEUE ═══ */}
+        <div className="min-h-0 overflow-y-auto border-r border-white/5 hidden lg:block"
           style={{ background: 'rgba(9,9,11,0.6)' }}>
           {/* Queue header */}
           <div className="p-3 border-b border-white/5 sticky top-0 z-10" style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(12px)' }}>
@@ -382,7 +384,7 @@ export default function DispatcherDashboard() {
         </div>
 
         {/* ═══ PANE 2: MAP ═══ */}
-        <div className="flex-1 min-w-0 relative min-h-0">
+        <div className="min-h-0 min-w-0 relative overflow-hidden">
           <DispatcherMap
             incidents={reports}
             selectedIncident={selectedReport}
@@ -420,23 +422,18 @@ export default function DispatcherDashboard() {
           </div>
         </div>
 
-        {/* ═══ PANE 3: RIGHT DETAIL (slide-in on mobile, static on desktop) ═══ */}
+        {/* ═══ PANE 3: RIGHT DETAIL ═══ */}
         {selectedReport && (
-          <>
-            {/* Mobile backdrop */}
-            <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSelectedReport(null)} />
-            {/* Panel container */}
-            <div className="fixed right-0 top-0 bottom-0 w-full lg:static lg:w-[420px] z-40 lg:z-auto overflow-y-auto border-l border-white/5 animate-slide-in-right shrink-0">
-              <DispatchIncidentPanel
-                incident={selectedReport}
-                onClose={() => setSelectedReport(null)}
-                onStatusUpdate={handleStatusUpdate}
-                onUrgencyOverride={handleUrgencyOverride}
-                onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
-                onResolve={handleResolve}
-              />
-            </div>
-          </>
+          <div className="min-h-0 overflow-y-auto border-l border-white/5 hidden lg:block">
+            <DispatchIncidentPanel
+              incident={selectedReport}
+              onClose={() => setSelectedReport(null)}
+              onStatusUpdate={handleStatusUpdate}
+              onUrgencyOverride={handleUrgencyOverride}
+              onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
+              onResolve={handleResolve}
+            />
+          </div>
         )}
       </div>
 
