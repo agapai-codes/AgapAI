@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '../../hooks/useAuth';
 import DispatchView from '../../views/DispatchView';
 
@@ -30,24 +31,37 @@ function LoginGate({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#09090b', color: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: '360px', padding: '0 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Agap<span style={{ color: '#ef4444' }}>AI</span> Dispatcher</h1>
-          <p style={{ color: '#71717a', fontSize: '14px' }}>Sign in to access the command center</p>
+    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center">
+      <div className="w-full max-w-sm mx-auto px-6">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
+            <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
+          </div>
+          <h1 className="text-xl font-extrabold tracking-wider uppercase">
+            Agap<span className="text-red-500">AI</span>
+          </h1>
+          <p className="text-[11px] text-neutral-500 mt-1">Sign in to the command center</p>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <input type="email" placeholder="Dispatcher email" value={email} onChange={e => setEmail(e.target.value)} required aria-label="Email"
-            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required aria-label="Password"
-            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }} />
-          {error && <p style={{ color: '#f87171', fontSize: '12px' }}>{error}</p>}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <input type="email" placeholder="Dispatcher email" value={email} onChange={e => setEmail(e.target.value)} required
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600 outline-none focus:border-white/20 transition-colors" />
+          </div>
+          <div>
+            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600 outline-none focus:border-white/20 transition-colors" />
+          </div>
+          {error && <p className="text-[11px] text-red-400">{error}</p>}
           <button type="submit" disabled={loading}
-            style={{ background: '#fafafa', color: '#09090b', fontWeight: 600, borderRadius: '8px', border: 'none', padding: '12px', fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            className="w-full py-3 bg-white text-black font-bold text-[13px] rounded-lg transition-all hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed">
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#52525b' }}>
+
+        <p className="text-center mt-6 text-[10px] text-neutral-600">
           Demo: dispatcher@agapai.ph / agapai123
         </p>
       </div>

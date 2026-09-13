@@ -9,7 +9,7 @@ import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
-import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap, MapPin } from 'lucide-react';
+import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap, MapPin, BarChart3 } from 'lucide-react';
 import { incidentToReport, toUrgencyLevel, reportToIncident } from '../types/incident';
 import { sortByUrgencySeverity } from '../utils/queueSorting';
 import { SIMULATION_DEMO_INCIDENTS } from '../utils/incidentTestingSuite';
@@ -216,6 +216,11 @@ export default function DispatcherDashboard() {
             className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 rounded-md text-[9px] font-bold tracking-wider uppercase transition-all">
             Demos
           </button>
+          <a href="/analytics"
+            className="px-2 py-1 bg-white/5 hover:bg-white/10 text-neutral-400 border border-white/10 rounded-md transition-all flex items-center gap-1"
+            title="Analytics Dashboard">
+            <BarChart3 size={11} />
+          </a>
           {user && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 border border-white/10">
               <Shield size={10} className="text-neutral-500" />
