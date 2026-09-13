@@ -303,8 +303,8 @@ export default function DispatcherDashboard() {
 
       {/* ── 3-PANE BODY ── */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Left Queue — hidden on mobile, shown as overlay */}
-        <div className={`${selectedReport ? 'hidden lg:block lg:w-80' : 'w-full lg:w-80'} shrink-0 border-r border-white/5 overflow-y-auto`}
+        {/* Left Queue — always visible on desktop, hidden on mobile when detail panel open */}
+        <div className={`${selectedReport ? 'hidden lg:block' : 'block'} w-full lg:w-80 shrink-0 border-r border-white/5 overflow-y-auto`}
           style={{ background: 'rgba(9,9,11,0.6)' }}>
           {/* Queue header */}
           <div className="p-3 border-b border-white/5 sticky top-0 z-10" style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(12px)' }}>
@@ -422,11 +422,11 @@ export default function DispatcherDashboard() {
 
         {/* ═══ PANE 3: RIGHT DETAIL (slide-in on mobile, static on desktop) ═══ */}
         {selectedReport && (
-          <div className="fixed inset-0 lg:static lg:inset-auto z-40 lg:z-auto">
-            {/* Backdrop on mobile */}
-            <div className="absolute inset-0 bg-black/50 lg:hidden" onClick={() => setSelectedReport(null)} />
-            {/* Panel */}
-            <div className="absolute right-0 top-0 bottom-0 w-full lg:w-[420px] lg:static overflow-y-auto border-l border-white/5 animate-slide-in-right">
+          <>
+            {/* Mobile backdrop */}
+            <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSelectedReport(null)} />
+            {/* Panel container */}
+            <div className="fixed right-0 top-0 bottom-0 w-full lg:static lg:w-[420px] z-40 lg:z-auto overflow-y-auto border-l border-white/5 animate-slide-in-right shrink-0">
               <DispatchIncidentPanel
                 incident={selectedReport}
                 onClose={() => setSelectedReport(null)}
@@ -436,7 +436,7 @@ export default function DispatcherDashboard() {
                 onResolve={handleResolve}
               />
             </div>
-          </div>
+          </>
         )}
       </div>
 
