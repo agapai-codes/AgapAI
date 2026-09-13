@@ -40,7 +40,7 @@ interface ApiItemResponse {
 }
 
 export function useIncidents() {
-  const [incidents, setIncidents] = useState<Incident[]>(SEED_INCIDENTS);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -134,7 +134,7 @@ export function useIncidents() {
     });
     const optimistic = previous.find((i) => i.id === id);
 
-    if (id.startsWith('local-') || id.startsWith('seed-')) {
+    if (id.startsWith('local-')) {
       return optimistic ? { ...optimistic, status } : null;
     }
 
@@ -164,7 +164,7 @@ export function useIncidents() {
       return prev.map((i) => (i.id === id ? { ...i, urgency, urgency_reason } : i));
     });
 
-    if (id.startsWith('local-') || id.startsWith('seed-')) {
+    if (id.startsWith('local-')) {
       const item = previous.find((i) => i.id === id);
       return item ? { ...item, urgency, urgency_reason } : null;
     }
@@ -307,14 +307,4 @@ export function useIncidents() {
   };
 }
 
-const now = Date.now();
-export const SEED_INCIDENTS: Incident[] = [
-  { id: 'seed-1', type: 'FIRE', location: 'V. Carral St, Poblacion, Iligan City', description: 'Residential structural fire spreading to adjacent building.', coordinates: { lng: 124.2442, lat: 8.2295 }, status: 'PENDING', reporter: 'Juan Dela Cruz', timestamp: new Date(now - 120_000).toISOString(), urgency: 'CRITICAL', urgency_reason: 'Active structural fire with potential spread' },
-  { id: 'seed-2', type: 'MEDICAL', location: 'Buru-un, Iligan City', description: 'Severe respiratory distress requiring immediate oxygen deployment.', coordinates: { lng: 124.1850, lat: 8.1960 }, status: 'PENDING', reporter: 'Maria Santos', timestamp: new Date(now - 300_000).toISOString(), urgency: 'HIGH', urgency_reason: 'Respiratory distress — conscious but in difficulty' },
-  { id: 'seed-3', type: 'ACCIDENT', location: 'MSU-IIT Engineering, Iligan City', description: 'Two-vehicle collision near the gate boundary.', coordinates: { lng: 124.2452, lat: 8.2415 }, status: 'DISPATCHED', reporter: 'Prof. Almaran', timestamp: new Date(now - 600_000).toISOString(), urgency: 'HIGH', urgency_reason: 'Vehicle collision with injuries reported' },
-  { id: 'seed-4', type: 'NATURAL_DISASTER', location: 'Brgy. Pala-o, Iligan City', description: 'Localized flash flood blocking intersection lanes.', coordinates: { lng: 124.2530, lat: 8.2320 }, status: 'PENDING', reporter: 'K. Vergara', timestamp: new Date(now - 900_000).toISOString(), urgency: 'MEDIUM', urgency_reason: 'Localized flooding — no immediate injuries reported' },
-  { id: 'seed-5', type: 'FIRE', location: 'Sabayle St, Tibanga, Iligan City', description: 'Electrical transformer sparking over market structures.', coordinates: { lng: 124.2410, lat: 8.2365 }, status: 'DISPATCHED', reporter: 'A. Vergara', timestamp: new Date(now - 1_200_000).toISOString(), urgency: 'HIGH', urgency_reason: 'Electrical fire near market — structural risk' },
-  { id: 'seed-6', type: 'MEDICAL', location: 'Rizal Ave, Cebu City', description: 'Cardiac arrest in elderly patient at restaurant.', coordinates: { lng: 123.8854, lat: 10.3157 }, status: 'PENDING', reporter: 'B. Reyes', timestamp: new Date(now - 180_000).toISOString(), urgency: 'CRITICAL', urgency_reason: 'Cardiac arrest — CPR in progress' },
-  { id: 'seed-7', type: 'ACCIDENT', location: 'EDSA, Makati City', description: 'Multi-vehicle pileup during rush hour.', coordinates: { lng: 121.0500, lat: 14.5547 }, status: 'DISPATCHED', reporter: 'Traffic Bureau', timestamp: new Date(now - 450_000).toISOString(), urgency: 'HIGH', urgency_reason: 'Multiple injuries reported at scene' },
-  { id: 'seed-8', type: 'VIOLENCE', location: 'Poblacion, Davao City', description: 'Reported stabbing incident near night market.', coordinates: { lng: 125.6128, lat: 7.0731 }, status: 'PENDING', reporter: 'C. Santos', timestamp: new Date(now - 240_000).toISOString(), urgency: 'HIGH', urgency_reason: 'Active violence scene with victim down' },
-];
+// SEED_INCIDENTS removed — dashboard starts empty, populated by DB via /api/incidents
