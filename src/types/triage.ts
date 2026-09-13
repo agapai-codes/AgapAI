@@ -3,6 +3,7 @@ import type { IncidentType, UrgencyLevel } from './incident';
 // Priority weights for queue scoring
 export const PRIORITY_WEIGHTS = {
   urgency: {
+    CRITICAL: 4.0,
     HIGH: 3.0,
     MEDIUM: 2.0,
     LOW: 1.0,

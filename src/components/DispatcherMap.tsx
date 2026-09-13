@@ -75,6 +75,7 @@ function applySpiderifyJitter(
 // ── Urgency colors ──────────────────────────────────────────────────────────
 
 const URGENCY_COLORS: Record<string, string> = {
+  CRITICAL: '#b91c1c',
   HIGH: '#ef4444',
   MEDIUM: '#eab308',
   LOW: '#22c55e',

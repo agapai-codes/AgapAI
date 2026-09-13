@@ -5,12 +5,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 
 interface UrgencyBadgeProps {
-  urgency: 'high' | 'medium' | 'low';
+  urgency: 'critical' | 'high' | 'medium' | 'low';
   reason?: string;
   size?: 'sm' | 'md' | 'lg';
 }
 
 const urgencyConfig = {
+  critical: {
+    className: 'bg-[#B91C1C] text-white border-[#B91C1C]',
+    label: 'CRITICAL',
+    icon: '●'
+  },
   high: {
     className: 'bg-[#DC2626] text-white border-[#DC2626]',
     label: 'HIGH',

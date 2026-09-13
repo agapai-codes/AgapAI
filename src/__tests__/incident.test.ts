@@ -37,9 +37,9 @@ describe('toIncidentType', () => {
 });
 
 describe('toUrgencyLevel', () => {
-  it('maps CRITICAL to HIGH', () => {
-    expect(toUrgencyLevel('CRITICAL')).toBe('HIGH');
-    expect(toUrgencyLevel('critical')).toBe('HIGH');
+  it('preserves CRITICAL', () => {
+    expect(toUrgencyLevel('CRITICAL')).toBe('CRITICAL');
+    expect(toUrgencyLevel('critical')).toBe('CRITICAL');
   });
 
   it('preserves HIGH', () => {
@@ -55,21 +55,22 @@ describe('toUrgencyLevel', () => {
     expect(toUrgencyLevel('LOW')).toBe('LOW');
   });
 
-  it('defaults to LOW for unknown values, MEDIUM for empty/undefined', () => {
-    expect(toUrgencyLevel('UNKNOWN')).toBe('LOW');
+  it('defaults to MEDIUM for unknown values and empty/undefined', () => {
+    expect(toUrgencyLevel('UNKNOWN')).toBe('MEDIUM');
     expect(toUrgencyLevel(undefined)).toBe('MEDIUM');
     expect(toUrgencyLevel('')).toBe('MEDIUM');
   });
 });
 
 describe('URGENCY_PRIORITY', () => {
-  it('HIGH has highest priority', () => {
+  it('CRITICAL has highest priority', () => {
+    expect(URGENCY_PRIORITY.CRITICAL).toBeGreaterThan(URGENCY_PRIORITY.HIGH);
     expect(URGENCY_PRIORITY.HIGH).toBeGreaterThan(URGENCY_PRIORITY.MEDIUM);
     expect(URGENCY_PRIORITY.MEDIUM).toBeGreaterThan(URGENCY_PRIORITY.LOW);
   });
 
-  it('does not contain CRITICAL', () => {
-    expect(URGENCY_PRIORITY).not.toHaveProperty('CRITICAL');
+  it('contains exactly 4 tiers', () => {
+    expect(Object.keys(URGENCY_PRIORITY)).toHaveLength(4);
   });
 });
 

@@ -2,6 +2,7 @@ import type { IncidentReport, UrgencyLevel } from '../types/incident';
 
 /** Urgency weight scale — higher = more urgent */
 export const URGENCY_WEIGHTS: Record<UrgencyLevel, number> = {
+  CRITICAL: 4,
   HIGH: 3,
   MEDIUM: 2,
   LOW: 1,
@@ -9,7 +10,7 @@ export const URGENCY_WEIGHTS: Record<UrgencyLevel, number> = {
 
 /**
  * Sort incidents by urgency severity (descending), then by most recent timestamp.
- * HIGH (3) > MEDIUM (2) > LOW (1).
+ * CRITICAL (4) > HIGH (3) > MEDIUM (2) > LOW (1).
  * Tie-breaker: newest first.
  */
 export function sortByUrgencySeverity(a: IncidentReport, b: IncidentReport): number {

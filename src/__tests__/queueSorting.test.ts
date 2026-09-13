@@ -24,14 +24,14 @@ function makeIncident(overrides: Partial<IncidentReport> = {}): IncidentReport {
 }
 
 describe('URGENCY_WEIGHTS', () => {
-  it('HIGH has highest weight', () => {
+  it('CRITICAL has highest weight', () => {
+    expect(URGENCY_WEIGHTS.CRITICAL).toBeGreaterThan(URGENCY_WEIGHTS.HIGH);
     expect(URGENCY_WEIGHTS.HIGH).toBeGreaterThan(URGENCY_WEIGHTS.MEDIUM);
     expect(URGENCY_WEIGHTS.MEDIUM).toBeGreaterThan(URGENCY_WEIGHTS.LOW);
   });
 
-  it('contains exactly 3 tiers', () => {
-    expect(Object.keys(URGENCY_WEIGHTS)).toHaveLength(3);
-    expect(URGENCY_WEIGHTS).not.toHaveProperty('CRITICAL');
+  it('contains exactly 4 tiers', () => {
+    expect(Object.keys(URGENCY_WEIGHTS)).toHaveLength(4);
   });
 });
 

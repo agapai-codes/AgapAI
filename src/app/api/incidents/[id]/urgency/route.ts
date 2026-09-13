@@ -9,7 +9,7 @@ import type { UrgencyLevel } from '@/types/incident';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_URGENCIES: UrgencyLevel[] = ['HIGH', 'MEDIUM', 'LOW'];
+const VALID_URGENCIES: UrgencyLevel[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 export async function PATCH(
   request: NextRequest,

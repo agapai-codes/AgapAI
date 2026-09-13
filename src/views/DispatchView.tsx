@@ -23,6 +23,7 @@ import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/inci
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
 const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
   { label: 'ALL', value: null },
+  { label: 'CRITICAL', value: 'CRITICAL' },
   { label: 'HIGH', value: 'HIGH' },
   { label: 'MEDIUM', value: 'MEDIUM' },
   { label: 'LOW', value: 'LOW' },
@@ -42,6 +43,7 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const URGENCY_COLORS: Record<string, { color: string; bg: string }> = {
+  CRITICAL: { color: '#b91c1c', bg: 'rgba(185,28,28,0.1)' },
   HIGH: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
   MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.1)' },
   LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },

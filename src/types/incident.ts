@@ -4,7 +4,7 @@
 // ── CORE ENUMS ───────────────────────────────────────────────────────────────
 
 export type IncidentType = 'MEDICAL' | 'ACCIDENT' | 'FIRE' | 'VIOLENCE' | 'NATURAL_DISASTER';
-export type UrgencyLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+export type UrgencyLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type IncidentStatus =
   | 'PENDING'
   | 'REVIEWING'
@@ -58,6 +58,7 @@ export interface IncidentReport {
     confidenceScore: number; // percentage (e.g. 95)
   };
   hazards: string[];
+  keyEntities?: string[];
   relevantContext: string;
   timeReported: string;
 
@@ -70,8 +71,16 @@ export interface IncidentReport {
   // Dispatch Lifecycle
   status: IncidentStatus;
   assignedUnits: string[];
+  recommendedDispatch?: string[];
   relatedReportIds: string[];
   firstAidGuidance?: FirstAidProtocol;
+
+  // Map marker config
+  mapMarker?: {
+    icon: string;
+    badgeCount: number;
+    pulse: boolean;
+  };
 }
 
 // ── BACKWARD-COMPATIBLE (DB / legacy consumers) ──────────────────────────────
@@ -138,9 +147,11 @@ export function toIncidentType(raw: string): IncidentType {
 export function toUrgencyLevel(raw: string | undefined): UrgencyLevel {
   if (!raw) return 'MEDIUM';
   const upper = raw.toUpperCase();
-  if (upper === 'CRITICAL' || upper === 'HIGH') return 'HIGH';
+  if (upper === 'CRITICAL') return 'CRITICAL';
+  if (upper === 'HIGH') return 'HIGH';
   if (upper === 'MEDIUM') return 'MEDIUM';
-  return 'LOW';
+  if (upper === 'LOW') return 'LOW';
+  return 'MEDIUM';
 }
 
 export function toStatus(raw: string | undefined): IncidentStatus {
@@ -183,7 +194,13 @@ export function incidentToReport(inc: Incident, triageRationale?: string): Incid
     } : undefined,
     status: inc.status,
     assignedUnits: inc.assigned_responder_name ? [inc.assigned_responder_name] : inc.recommended_unit_type || [],
+    recommendedDispatch: inc.recommended_unit_type || [],
     relatedReportIds: [],
+    mapMarker: {
+      icon: inc.type === 'FIRE' ? 'flame' : inc.type === 'MEDICAL' ? 'medical-cross' : inc.type === 'ACCIDENT' ? 'car-crash' : inc.type === 'VIOLENCE' ? 'shield-alert' : 'warning-triangle',
+      badgeCount: inc.people_affected || 1,
+      pulse: inc.urgency === 'CRITICAL',
+    },
   };
 }
 
@@ -216,6 +233,7 @@ export function reportToIncident(report: IncidentReport, base?: Partial<Incident
 // ── QUEUE UTILITIES ──────────────────────────────────────────────────────────
 
 export const URGENCY_PRIORITY: Record<UrgencyLevel, number> = {
+  CRITICAL: 125,
   HIGH: 100,
   MEDIUM: 50,
   LOW: 25,

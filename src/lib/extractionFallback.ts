@@ -11,12 +11,14 @@ export interface ExtractedInfo {
   location_description: string;
   people_affected: number;
   hazards: string[];
-  urgency: 'HIGH' | 'MEDIUM' | 'LOW';
+  urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   urgency_reason: string;
   confidence: number;
-  consciousness: boolean;
-  breathing: boolean;
-  bleeding: boolean;
+  consciousness: boolean | null;
+  breathing: boolean | null;
+  bleeding: boolean | null;
+  injuries_symptoms: string[];
+  key_entities: string[];
   recommended_unit_type: UnitType[];
   dispatch_priority_score: number;
 }
@@ -153,7 +155,7 @@ export function extractFallback(transcript: string): ExtractedInfo {
   let urgency: ExtractedInfo['urgency'] = 'MEDIUM';
   let urgency_reason = 'Standard report; assessed as non-urgent.';
   if (critical) {
-    urgency = 'HIGH';
+    urgency = 'CRITICAL';
     urgency_reason = 'Life-threatening indicators detected (unconsciousness, severe bleeding, breathing failure, or entrapment).';
   } else if (high) {
     urgency = 'HIGH';
@@ -163,6 +165,24 @@ export function extractFallback(transcript: string): ExtractedInfo {
     urgency_reason = 'Precautionary or minor report; no immediate danger or injury detected.';
   }
 
+  // Extract injuries/symptoms from text
+  const injuries_symptoms: string[] = [];
+  if (/(unconscious|unresponsive)/.test(text)) injuries_symptoms.push('Unconsciousness');
+  if (/(bleed|blood)/.test(text)) injuries_symptoms.push('Active bleeding');
+  if (/(not breathing|difficulty breathing|short of breath)/.test(text)) injuries_symptoms.push('Breathing difficulty');
+  if (/(burn|scald)/.test(text)) injuries_symptoms.push('Burns');
+  if (/(fracture|broken)/.test(text)) injuries_symptoms.push('Possible fracture');
+  if (/(head|skull|temple)/.test(text)) injuries_symptoms.push('Head injury');
+  if (/(smoke|inhalation)/.test(text)) injuries_symptoms.push('Smoke inhalation risk');
+
+  // Extract key entities
+  const key_entities: string[] = [];
+  if (/(transformer|electrical|power line|wire)/i.test(text)) key_entities.push('Electrical infrastructure');
+  if (/(roof|ceiling|structural)/i.test(text)) key_entities.push('Building structure');
+  if (/(vehicle|car|motorcycle|truck)/i.test(text)) key_entities.push('Vehicle');
+  if (/(weapon|knife|gun)/i.test(text)) key_entities.push('Weapon');
+  if (/(chemical|gas|toxic)/i.test(text)) key_entities.push('Hazardous material');
+
   const confidence = calculateConfidence(transcript, condition, location_description);
   const recommended_unit_type = detectUnitType(incident_type);
   const dispatch_priority_score = calculateDispatchPriority(urgency, consciousness, breathing, bleeding, people_affected);
@@ -170,6 +190,6 @@ export function extractFallback(transcript: string): ExtractedInfo {
   return {
     incident_type, condition, location_description, people_affected, hazards,
     urgency, urgency_reason, confidence, consciousness, breathing, bleeding,
-    recommended_unit_type, dispatch_priority_score,
+    injuries_symptoms, key_entities, recommended_unit_type, dispatch_priority_score,
   };
 }
