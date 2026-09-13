@@ -470,30 +470,14 @@ export default function CitizenView() {
         )}
       </div>
 
-      {/* Feature cards */}
-      {!transcript && !isRecording && (
-        <div className="grid grid-cols-2 gap-4 w-full max-w-md mx-auto px-6 pb-12 relative z-20">
-          {[
-            { icon: <Zap size={18} />, title: 'Tap SOS', desc: 'Instant emergency activation', color: '#ef4444', onClick: handleSOS },
-            { icon: <Mic size={18} />, title: 'Voice Report', desc: 'Speak naturally — AI converts to report', color: '#3b82f6', onClick: () => setShowVoiceModal(true) },
-          ].map((f) => (
-            <div key={f.title} onClick={f.onClick} role="button" tabIndex={0} aria-label={f.title}
-              onKeyDown={e => e.key === 'Enter' && f.onClick()}
-              className="rounded-xl p-4 flex flex-col justify-between min-h-[100px] text-left cursor-pointer transition-all"
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                backdropFilter: 'blur(12px)',
-              }}>
-              <div>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ background: `${f.color}15`, color: f.color }}>{f.icon}</div>
-                <h3 className="text-[13px] font-bold text-white mb-0.5">{f.title}</h3>
-                <p className="text-[11px] text-neutral-500 leading-relaxed m-0">{f.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        {/* Voice Report button — secondary action */}
+        {!transcript && !isRecording && (
+          <button onClick={() => setShowVoiceModal(true)}
+            className="mt-4 px-5 py-2.5 bg-white/5 border border-white/10 text-neutral-300 rounded-full text-[11px] font-semibold tracking-wider flex items-center gap-2 transition-all hover:bg-white/10 hover:text-white"
+            style={{ backdropFilter: 'blur(12px)' }}>
+            <Mic size={14} /> Voice Report
+          </button>
+        )}
 
       {/* VOICE MODAL — using VoiceRecorder component */}
       {showVoiceModal && (

@@ -175,6 +175,9 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         </div>
       </Section>
 
+      {/* ── SCROLLABLE CONTENT ── */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+
       {/* ── METADATA GRID ── */}
       <Section>
         <div className="grid grid-cols-3 gap-3">
@@ -387,8 +390,10 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         </Section>
       )}
 
-      {/* ── DISPATCHER ACTIONS ── */}
-      <div className="px-5 py-4 mt-auto shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      </div>{/* end scrollable content */}
+
+      {/* ── ACTIONS (sticky bottom) ── */}
+      <div className="px-5 py-4 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
         {/* Status advance button */}
         {next && !isResolved && onStatusUpdate && (
           <button onClick={handleStatusAdvance}
