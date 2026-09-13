@@ -228,19 +228,20 @@ export default function DispatcherDashboard() {
         </div>
 
         {/* Center: Metrics pills */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {[
-            { label: 'TOTAL', value: metrics.total, color: '#fafafa', bg: 'rgba(255,255,255,0.05)' },
-            { label: 'HIGH', value: metrics.critical, color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
-            { label: 'DISP', value: metrics.dispatched, color: '#60a5fa', bg: 'rgba(96,165,250,0.08)' },
-            { label: 'TRI', value: metrics.triaged, color: '#a855f7', bg: 'rgba(168,85,247,0.08)' },
-            { label: 'WAIT', value: metrics.awaitingReview, color: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
-            { label: 'UNAS', value: metrics.unassigned, color: '#f97316', bg: 'rgba(249,115,22,0.08)' },
-            { label: 'RES', value: metrics.resolved, color: '#22c55e', bg: 'rgba(34,197,94,0.08)' },
+            { label: 'Total', value: metrics.total, color: '#e2e8f0', bg: 'rgba(226,232,240,0.08)', border: 'rgba(226,232,240,0.15)' },
+            { label: 'High', value: metrics.critical, color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.25)' },
+            { label: 'Dispatched', value: metrics.dispatched, color: '#94a3b8', bg: 'rgba(148,163,184,0.06)', border: 'rgba(148,163,184,0.12)' },
+            { label: 'Triaged', value: metrics.triaged, color: '#c084fc', bg: 'rgba(192,132,252,0.08)', border: 'rgba(192,132,252,0.15)' },
+            { label: 'Awaiting', value: metrics.awaitingReview, color: '#fbbf24', bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.15)' },
+            { label: 'Resolved', value: metrics.resolved, color: '#4ade80', bg: 'rgba(74,222,128,0.08)', border: 'rgba(74,222,128,0.15)' },
           ].map(m => (
-            <div key={m.label} className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: m.bg }}>
-              <span className="text-[8px] font-bold tracking-wider uppercase" style={{ color: `${m.color}99` }}>{m.label}</span>
-              <span className="text-xs font-black font-mono" style={{ color: m.color }}>{m.value}</span>
+            <div key={m.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+              style={{ background: m.bg, border: `1px solid ${m.border}` }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
+              <span className="text-[10px] font-semibold" style={{ color: m.color }}>{m.label}</span>
+              <span className="text-[11px] font-black tabular-nums" style={{ color: m.color }}>{m.value}</span>
             </div>
           ))}
         </div>
@@ -326,33 +327,39 @@ export default function DispatcherDashboard() {
               const urg = URGENCY_COLORS[report.urgency] || URGENCY_COLORS.MEDIUM;
               return (
                 <button key={report.id} onClick={() => handleSelectIncident(report)}
-                  className={`w-full text-left rounded-lg transition-all relative overflow-hidden animate-fade-in ${
+                  className={`w-full text-left rounded-xl transition-all relative overflow-hidden animate-fade-in ${
                     isSelected
-                      ? 'bg-white/[0.08] border border-white/20 shadow-lg shadow-black/20'
-                      : 'bg-transparent border border-transparent hover:bg-white/[0.04] hover:border-white/8 hover:shadow-md hover:shadow-black/10'
+                      ? 'border-2 shadow-lg'
+                      : 'border border-white/5 hover:border-white/10 hover:shadow-md'
                   }`}
-                  style={{ animationDelay: `${idx * 30}ms` }}>
+                  style={{
+                    animationDelay: `${idx * 30}ms`,
+                    background: isSelected ? 'rgba(30,41,59,0.95)' : '#161F30',
+                    borderColor: isSelected ? urg.color : undefined,
+                    boxShadow: isSelected ? `0 0 20px ${urg.color}20, 0 4px 12px rgba(0,0,0,0.3)` : undefined,
+                  }}>
                   {/* Left accent bar */}
-                  <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg transition-all" style={{ background: urg.color, opacity: isSelected ? 1 : 0.6 }} />
+                  <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: urg.color }} />
 
                   <div className="p-3 pl-4">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px]">{TYPE_ICONS[report.type] || '📋'}</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: urg.color }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                          style={{ color: urg.color, background: `${urg.color}15` }}>
                           {report.urgency}
                         </span>
                       </div>
-                      <span className="text-[9px] text-neutral-500">{timeAgo(report.timeReported)}</span>
+                      <span className="text-[9px] text-slate-500">{timeAgo(report.timeReported)}</span>
                     </div>
-                    <p className="text-[12px] font-semibold text-neutral-100 truncate leading-tight">{report.condition}</p>
+                    <p className="text-[12px] font-semibold truncate leading-tight" style={{ color: '#e2e8f0' }}>{report.condition}</p>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <MapPin size={9} className="text-neutral-600 shrink-0" />
-                      <p className="text-[10px] text-neutral-500 truncate">{report.location.landmarkText}</p>
+                      <MapPin size={9} className="text-slate-500 shrink-0" />
+                      <p className="text-[10px] truncate" style={{ color: '#94a3b8' }}>{report.location.landmarkText}</p>
                     </div>
                     <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[9px] text-neutral-600">{report.type.replace('_', ' ')}</span>
-                      <span className="text-[9px] text-neutral-600">👥 {report.peopleCount}</span>
+                      <span className="text-[9px]" style={{ color: '#64748b' }}>{report.type.replace('_', ' ')}</span>
+                      <span className="text-[9px]" style={{ color: '#64748b' }}>👥 {report.peopleCount}</span>
                     </div>
                   </div>
                 </button>

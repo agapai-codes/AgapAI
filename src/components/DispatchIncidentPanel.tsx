@@ -145,31 +145,38 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         </button>
       </div>
 
-      {/* ── STATUS LIFECYCLE BAR ── */}
+      {/* ── STATUS LIFECYCLE STEPPER ── */}
       <Section className="shrink-0 bg-white/[0.02]">
         <SectionLabel icon={Activity} label="LIFECYCLE" />
-        <div className="flex items-center gap-0.5">
-          {(['PENDING', 'REVIEWING', 'PRIORITIZED', 'DISPATCHED', 'EN_ROUTE', 'ARRIVED', 'RESOLVED'] as IncidentStatus[]).map((s) => {
+        <div className="flex items-center">
+          {(['PENDING', 'REVIEWING', 'PRIORITIZED', 'DISPATCHED', 'EN_ROUTE', 'ARRIVED', 'RESOLVED'] as IncidentStatus[]).map((s, i) => {
             const currentIdx = STATUS_ORDER[incident.status];
             const thisIdx = STATUS_ORDER[s];
             const isPast = thisIdx < currentIdx;
             const isCurrent = thisIdx === currentIdx;
+            const color = isPast ? '#22c55e' : isCurrent ? '#60a5fa' : '#334155';
             return (
               <React.Fragment key={s}>
-                <div className={`flex flex-col items-center ${isCurrent ? 'scale-110' : ''}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold border transition-all ${
-                    isPast ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                    : isCurrent ? 'bg-white/10 border-white/50 text-white'
-                    : 'bg-white/5 border-white/10 text-neutral-600'
-                  }`}>
+                {/* Node */}
+                <div className="relative flex flex-col items-center">
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold border-2 transition-all z-10"
+                    style={{
+                      borderColor: color,
+                      background: isPast ? 'rgba(34,197,94,0.15)' : isCurrent ? 'rgba(96,165,250,0.15)' : 'transparent',
+                      color: color,
+                      boxShadow: isCurrent ? `0 0 12px ${color}40` : 'none',
+                    }}
+                  >
                     {isPast ? '✓' : thisIdx + 1}
                   </div>
-                  <span className={`text-[7px] mt-0.5 font-mono ${isCurrent ? 'text-white' : isPast ? 'text-emerald-400/70' : 'text-neutral-600'}`}>
+                  <span className={`text-[7px] mt-1 font-mono whitespace-nowrap ${isCurrent ? 'text-blue-400 font-bold' : isPast ? 'text-emerald-500/70' : 'text-slate-600'}`}>
                     {STATUS_LABELS[s]}
                   </span>
                 </div>
-                {s !== 'RESOLVED' && (
-                  <div className={`flex-1 h-[2px] ${isPast ? 'bg-emerald-500/50' : 'bg-white/10'} mb-3`} />
+                {/* Connector line */}
+                {i < 6 && (
+                  <div className="flex-1 h-[2px] -mx-1" style={{ background: isPast ? '#22c55e60' : '#1e293b' }} />
                 )}
               </React.Fragment>
             );
@@ -216,19 +223,23 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         </div>
       </Section>
 
-      {/* ── VITALS ── */}
+      {/* ── VITALS & HAZARDS ── */}
       <Section>
         <SectionLabel icon={Activity} label="VITALS ASSESSMENT" color="text-red-400" />
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: 'Conscious', value: incident.vitals.conscious, icon: Brain },
-            { label: 'Breathing', value: incident.vitals.breathing, icon: Wind },
-            { label: 'Bleeding', value: incident.vitals.bleeding, icon: Droplets },
+            { label: 'Conscious', value: incident.vitals.conscious, icon: Brain, adverse: incident.vitals.conscious === false },
+            { label: 'Breathing', value: incident.vitals.breathing, icon: Wind, adverse: incident.vitals.breathing === false },
+            { label: 'Bleeding', value: incident.vitals.bleeding, icon: Droplets, adverse: incident.vitals.bleeding === true },
           ].map(v => (
-            <div key={v.label} className="bg-white/[0.03] p-2.5 rounded-lg text-center border border-white/5">
-              <v.icon size={13} className={`mx-auto mb-1 ${v.value === false ? 'text-red-400' : 'text-neutral-500'}`} />
-              <p className="text-[8px] text-neutral-500 uppercase font-mono tracking-wider">{v.label}</p>
-              <p className={`font-bold text-[13px] mt-0.5 ${v.value === false ? 'text-red-400' : v.value === true ? 'text-emerald-400' : 'text-neutral-500'}`}>
+            <div key={v.label} className="p-2.5 rounded-lg text-center border"
+              style={{
+                background: v.adverse ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)',
+                borderColor: v.adverse ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.2)',
+              }}>
+              <v.icon size={13} className={`mx-auto mb-1 ${v.adverse ? 'text-red-400' : 'text-emerald-400'}`} />
+              <p className="text-[8px] uppercase font-mono tracking-wider" style={{ color: '#94a3b8' }}>{v.label}</p>
+              <p className="font-bold text-[13px] mt-0.5" style={{ color: v.adverse ? '#f87171' : '#4ade80' }}>
                 {v.value === null ? '—' : v.value ? 'YES' : 'NO'}
               </p>
             </div>
@@ -238,12 +249,12 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         {/* Hazards */}
         {incident.hazards.length > 0 && (
           <div className="mt-3">
-            <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">HAZARDS</p>
-            <div className="flex flex-wrap gap-1">
+            <p className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#94a3b8' }}>Identified Hazards</p>
+            <div className="flex flex-wrap gap-1.5">
               {incident.hazards.map((h, i) => (
-                <span key={i} className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md"
-                  style={{ color: '#f97316', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)' }}>
-                  <ShieldAlert size={8} /> {h}
+                <span key={i} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
+                  style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+                  <ShieldAlert size={9} /> {h}
                 </span>
               ))}
             </div>
@@ -253,10 +264,11 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         {/* Injuries */}
         {incident.injuriesSymptoms.length > 0 && (
           <div className="mt-2">
-            <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">INJURIES / SYMPTOMS</p>
-            <div className="flex flex-wrap gap-1">
+            <p className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#94a3b8' }}>Injuries / Symptoms</p>
+            <div className="flex flex-wrap gap-1.5">
               {incident.injuriesSymptoms.map((s, i) => (
-                <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-neutral-300 border border-white/10">
+                <span key={i} className="text-[10px] px-2.5 py-1 rounded-lg font-semibold"
+                  style={{ background: 'rgba(239,68,68,0.08)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }}>
                   {s}
                 </span>
               ))}

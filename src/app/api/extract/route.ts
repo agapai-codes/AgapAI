@@ -11,43 +11,37 @@ export const dynamic = 'force-dynamic';
 const VALID_TYPES: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'];
 const VALID_URGENCIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
-const PROMPT = `You are AGAPAI-Core, a real-time emergency dispatch triage and decision support AI engine. Your objective is to extract structured, actionable telemetry from incoming voice transcripts, caller notes, and geolocation data to assist 911/emergency operators under strict time constraints.
+const PROMPT = `You are an expert emergency medical and dispatch AI decision-support engine. Your role is to analyze incoming caller transcripts, reported observations, and scene telemetry to assist human operators with instant triage assessment.
 
-### Core Objectives:
-1. Parse raw situational input and extract vital facts, hazards, and affected individuals.
-2. Assign triage severity adhering to standard incident priority matrices.
-3. Formulate a short, tactical rationale explaining the classification.
-4. Output cleanly structured, machine-parseable JSON only.
-
-### Urgency Classification Rules:
-- CRITICAL: Active structural fires, high-voltage/explosion hazards, severe trauma, unconsciousness, life-threatening scenarios.
-- HIGH: Spreading hazards, multi-vehicle crashes with injury, uncontained electrical arcs, severe bleeding.
-- MEDIUM: Property damage without life threat, minor injuries, physical altercations without weapons.
-- LOW: Routine assistance, non-emergency municipal reports, noise complaints.
-
-### Rules of Engagement:
-- You are a decision support tool; dispatchers retain final operational command.
-- Do NOT hallucinate injuries or hazards not directly referenced or strongly implied by caller reports.
-- If vitals (consciousness, breathing, bleeding) are unmentioned, classify them strictly as "UNKNOWN".
-- Output MUST be valid JSON matching the exact schema below. Do not wrap in conversational introductions or sign-offs.
+### OPERATIONAL RULES:
+1. Extract patient vitals strictly from caller testimony:
+   - conscious: "YES" | "NO" | "UNKNOWN"
+   - breathing: "YES" | "NO" | "UNKNOWN"
+   - bleeding: "YES" | "NO" | "UNKNOWN"
+2. Assign urgency levels:
+   - "CRITICAL": Active cardiac/respiratory arrest, severe arterial hemorrhage, deep unconsciousness with trauma.
+   - "HIGH": Severe head trauma, major fractures, uncontained fire/spill risks.
+   - "MEDIUM": Stable fractures, controlled bleeding, mild altercations.
+   - "LOW": Routine medical check, minor abrasions.
+3. Keep the dispatch rationale within 1-2 direct, high-impact tactical sentences.
+4. Output strictly valid JSON. Do not add markdown introductory text or meta commentary.
 
 Return ONLY a valid JSON object with these exact fields:
 {
-  "category": "FIRE" | "MEDICAL" | "ACCIDENT" | "VIOLENCE" | "NATURAL_DISASTER",
+  "category": "MEDICAL" | "FIRE" | "ACCIDENT" | "VIOLENCE" | "NATURAL_DISASTER",
   "urgency": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
-  "confidence_score": number, // Float between 0.00 and 1.00
-  "estimated_people_affected": number,
-  "condition": "brief description of the person's condition or situation",
+  "confidence_score": number, // Float 0.00 - 1.00
+  "affected_count": number,
+  "condition": "brief description of the person's condition",
   "vitals": {
     "conscious": "YES" | "NO" | "UNKNOWN",
     "breathing": "YES" | "NO" | "UNKNOWN",
     "bleeding": "YES" | "NO" | "UNKNOWN"
   },
   "hazards": string[],
-  "injuries_symptoms": string[],
-  "key_entities": string[],
-  "ai_rationale": "Maximum 2 concise, tactical sentences for dispatcher quick-read",
-  "recommended_dispatch": string[]
+  "injuries": string[],
+  "rationale": "1-2 tactical sentences for dispatcher quick-read",
+  "dispatch_units": string[]
 }
 
 Confidence rules:
@@ -99,19 +93,19 @@ async function tryGemini(transcript: string): Promise<ExtractedInfo | null> {
       incident_type: type,
       condition: typeof parsed.condition === 'string' ? parsed.condition : 'unknown condition',
       location_description: typeof parsed.location_description === 'string' ? parsed.location_description : 'location not specified',
-      people_affected: Number.isFinite(Number(parsed.estimated_people_affected || parsed.people_affected))
-        ? Math.min(Math.max(1, Math.round(Number(parsed.estimated_people_affected || parsed.people_affected))), 1000)
+      people_affected: Number.isFinite(Number(parsed.affected_count || parsed.estimated_people_affected || parsed.people_affected))
+        ? Math.min(Math.max(1, Math.round(Number(parsed.affected_count || parsed.estimated_people_affected || parsed.people_affected))), 1000)
         : 1,
       hazards: Array.isArray(parsed.hazards) ? parsed.hazards.filter((h: unknown): h is string => typeof h === 'string').slice(0, 20) : [],
       urgency,
-      urgency_reason: typeof parsed.ai_rationale === 'string' ? parsed.ai_rationale : typeof parsed.urgency_reason === 'string' ? parsed.urgency_reason : 'Unable to determine urgency',
+      urgency_reason: typeof parsed.rationale === 'string' ? parsed.rationale : typeof parsed.ai_rationale === 'string' ? parsed.ai_rationale : typeof parsed.urgency_reason === 'string' ? parsed.urgency_reason : 'Unable to determine urgency',
       confidence,
       consciousness: normalizeVital(parsed.vitals?.conscious ?? parsed.consciousness),
       breathing: normalizeVital(parsed.vitals?.breathing ?? parsed.breathing),
       bleeding: normalizeVital(parsed.vitals?.bleeding ?? parsed.bleeding),
-      injuries_symptoms: Array.isArray(parsed.injuries_symptoms) ? parsed.injuries_symptoms : [],
+      injuries_symptoms: Array.isArray(parsed.injuries) ? parsed.injuries : Array.isArray(parsed.injuries_symptoms) ? parsed.injuries_symptoms : [],
       key_entities: Array.isArray(parsed.key_entities) ? parsed.key_entities : [],
-      recommended_unit_type: Array.isArray(parsed.recommended_dispatch) ? parsed.recommended_dispatch : [],
+      recommended_unit_type: Array.isArray(parsed.dispatch_units) ? parsed.dispatch_units : Array.isArray(parsed.recommended_dispatch) ? parsed.recommended_dispatch : [],
       dispatch_priority_score: 0,
     };
   } catch (error) {

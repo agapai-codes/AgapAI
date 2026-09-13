@@ -198,10 +198,10 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     spiderified.forEach((inc, idx) => {
       const color = URGENCY_COLORS[inc.urgency] || '#71717a';
       const isSelected = selectedIncident?.id === inc.id;
-      const isHigh = inc.urgency === 'HIGH';
-      const size = isSelected ? 40 : 32;
+      const isCritical = inc.urgency === 'CRITICAL';
+      const size = isSelected ? 36 : 28;
 
-      // ── Pin element (rounded square) ──
+      // ── Beacon pin element ──
       const el = document.createElement('div');
       el.style.cssText = `
         position: relative;
@@ -209,32 +209,57 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
         width: ${size}px;
         height: ${size}px;
-        background: ${color};
-        border: 2px solid rgba(255,255,255,0.3);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 ${isHigh ? '24px' : '0px'} ${color}40;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: transform 0.2s ease;
         animation: pin-drop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 30}ms both;
-        ${isSelected ? 'transform: scale(1.2); z-index: 10; box-shadow: 0 4px 24px rgba(0,0,0,0.7), 0 0 32px ' + color + '60;' : ''}
+        ${isSelected ? 'transform: scale(1.3); z-index: 10;' : ''}
       `;
-      el.style.fontSize = `${isSelected ? 18 : 14}px`;
-      el.style.lineHeight = '1';
-      el.innerHTML = TYPE_ICONS[inc.type] || '📋';
 
-      // HIGH urgency glow ring
-      if (isHigh && !isSelected) {
-        const glow = document.createElement('div');
-        glow.style.cssText = `
+      // Outer beacon ring
+      const ring = document.createElement('div');
+      ring.style.cssText = `
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 2px solid ${color};
+        opacity: ${isCritical ? '0.6' : '0.3'};
+        ${isCritical ? 'animation: pulse-ring 1.5s ease-in-out infinite;' : ''}
+      `;
+      el.appendChild(ring);
+
+      // Inner filled circle
+      const circle = document.createElement('div');
+      circle.style.cssText = `
+        position: relative;
+        width: ${size * 0.6}px;
+        height: ${size * 0.6}px;
+        border-radius: 50%;
+        background: ${color};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 ${isCritical ? '16px' : '8px'} ${color}60;
+        z-index: 1;
+      `;
+      circle.style.fontSize = `${isSelected ? 14 : 11}px`;
+      circle.innerHTML = TYPE_ICONS[inc.type] || '📋';
+      el.appendChild(circle);
+
+      // Critical pulse indicator
+      if (isCritical && !isSelected) {
+        const pulse = document.createElement('div');
+        pulse.style.cssText = `
           position: absolute;
-          inset: -4px;
-          border-radius: 12px;
-          border: 2px solid ${color}60;
-          animation: pulse-ring 2s ease-in-out infinite;
-          pointer-events: none;
+          top: -2px; right: -2px;
+          width: 10px; height: 10px;
+          border-radius: 50%;
+          background: #ef4444;
+          border: 2px solid #09090b;
+          z-index: 2;
+          animation: pulse-ring 1s ease-in-out infinite;
         `;
-        el.appendChild(glow);
+        el.appendChild(pulse);
       }
 
       // ── Marker ──
