@@ -8,6 +8,7 @@ import { useIncidents } from '../hooks/useIncidents';
 import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
 import { useAuth } from '../hooks/useAuth';
+import { getRealCoordinates, getRandomPHCoords } from '../utils/geolocation';
 import VoiceRecorder from '../components/VoiceRecorder';
 import { isDemo, isLive, APP_MODE } from '../lib/config';
 import type { IncidentType, UrgencyLevel } from '../types/incident';
@@ -57,10 +58,13 @@ export default function CitizenView() {
     return () => clearInterval(timer);
   }, []);
 
-  const acquireGPS = useCallback((): Promise<{ lng: number; lat: number } | null> => {
+  const acquireGPS = useCallback((): Promise<{ lng: number; lat: number }> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        resolve(null);
+        const fallback = getRandomPHCoords();
+        setGpsCoords(fallback);
+        setGpsStatus('error');
+        resolve(fallback);
         return;
       }
       setGpsStatus('loading');
@@ -72,9 +76,10 @@ export default function CitizenView() {
           resolve(coords);
         },
         () => {
-          setGpsCoords(null);
+          const fallback = getRandomPHCoords();
+          setGpsCoords(fallback);
           setGpsStatus('error');
-          resolve(null);
+          resolve(fallback);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -84,10 +89,6 @@ export default function CitizenView() {
   const handleSOS = useCallback(async () => {
     try {
       const coords = await acquireGPS();
-      if (!coords) {
-        toast.error('GPS location required for emergency beacon');
-        return;
-      }
       const result = await createIncident({
         type: 'MEDICAL',
         location: 'Current Location (GPS)',
@@ -117,12 +118,6 @@ export default function CitizenView() {
 
     setExtractionStep('capturing-location');
     const coords = gpsCoords || await acquireGPS();
-    if (!coords) {
-      setIsProcessing(false);
-      setExtractionStep(null);
-      toast.error('GPS location required for report submission');
-      return;
-    }
 
     setExtractionStep('analyzing-transcript');
     try {
@@ -367,7 +362,7 @@ export default function CitizenView() {
         {gpsStatus !== 'idle' && (
           <p className={`text-[11px] mt-1 flex items-center gap-1 ${gpsStatus === 'ready' ? 'text-[#22c55e]' : gpsStatus === 'loading' ? 'text-[#eab308]' : 'text-[#f87171]'}`}>
             <MapPin size={12} />
-            {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'GPS unavailable — location required'}
+            {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'Using approximate location'}
           </p>
         )}
 

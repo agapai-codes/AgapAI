@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { getRandomPHCoords, type GeoCoordinates } from '../utils/geolocation';
 
 export interface GeoPosition {
   coords: [number, number]; // [longitude, latitude]
@@ -14,8 +15,6 @@ export interface UsePreciseLocationReturn {
   acquire: () => Promise<GeoPosition | null>;
 }
 
-const PHILIPPINES_CENTER: [number, number] = [121.7740, 12.8797];
-
 export function usePreciseLocation(): UsePreciseLocationReturn {
   const [position, setPosition] = useState<GeoPosition | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -24,9 +23,12 @@ export function usePreciseLocation(): UsePreciseLocationReturn {
   const acquire = useCallback((): Promise<GeoPosition | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
+        const fallback = getRandomPHCoords();
+        const result: GeoPosition = { coords: [fallback.lng, fallback.lat], accuracy: fallback.accuracy };
+        setPosition(result);
         setStatus('error');
         setError('Geolocation not supported by browser');
-        resolve(null);
+        resolve(result);
         return;
       }
 
@@ -44,15 +46,13 @@ export function usePreciseLocation(): UsePreciseLocationReturn {
           resolve(result);
         },
         (err) => {
-          console.warn('High accuracy geolocation failed, using coarse fallback:', err.message);
-          const fallback: GeoPosition = {
-            coords: PHILIPPINES_CENTER,
-            accuracy: 0,
-          };
-          setPosition(fallback);
+          console.warn('Geolocation failed, using distributed fallback:', err.message);
+          const fallback = getRandomPHCoords();
+          const result: GeoPosition = { coords: [fallback.lng, fallback.lat], accuracy: fallback.accuracy };
+          setPosition(result);
           setStatus('error');
           setError(err.message);
-          resolve(fallback);
+          resolve(result);
         },
         {
           enableHighAccuracy: true,
@@ -68,24 +68,7 @@ export function usePreciseLocation(): UsePreciseLocationReturn {
 
 /** One-shot async function — no React state, for use outside components */
 export async function getAccuratePosition(): Promise<[number, number]> {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      resolve(PHILIPPINES_CENTER);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve([position.coords.longitude, position.coords.latitude]);
-      },
-      () => {
-        resolve(PHILIPPINES_CENTER);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
-    );
-  });
+  const { getRealCoordinates } = await import('../utils/geolocation');
+  const pos = await getRealCoordinates();
+  return [pos.lng, pos.lat];
 }

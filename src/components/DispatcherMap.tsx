@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { IncidentReport } from '@/types/incident';
+import type { IncidentReport } from '../types/incident';
 
 const FREE_OSM_STYLE = {
   version: 8 as const,
@@ -35,6 +35,44 @@ interface DispatcherMapProps {
   isRightPanelOpen: boolean;
 }
 
+/**
+ * Disperses incidents sharing identical/near-identical coordinates into a radial
+ * spiral so pins never stack into a single unclickable dot.
+ * Returns each incident with a `displayCoords` field for MapLibre rendering.
+ */
+function applySpiderifyJitter(
+  incidents: IncidentReport[]
+): (IncidentReport & { displayCoords: [number, number] })[] {
+  const coordMap: { [key: string]: number } = {};
+
+  return incidents.map((inc) => {
+    const rawLng = inc.location?.coordinates?.[0] ?? 121.774;
+    const rawLat = inc.location?.coordinates?.[1] ?? 12.879;
+    const key = `${rawLng.toFixed(5)},${rawLat.toFixed(5)}`;
+
+    if (!(key in coordMap)) {
+      coordMap[key] = 0;
+      return { ...inc, displayCoords: [rawLng, rawLat] as [number, number] };
+    }
+
+    const count = coordMap[key]++;
+    const angle = count * (Math.PI / 4); // 45-degree spread
+    const radius = 0.00035 * Math.ceil((count + 1) / 8); // ~35-40m rings
+
+    const offsetLng = rawLng + radius * Math.cos(angle);
+    const offsetLat = rawLat + radius * Math.sin(angle);
+
+    return { ...inc, displayCoords: [offsetLng, offsetLat] as [number, number] };
+  });
+}
+
+const URGENCY_COLORS: Record<string, string> = {
+  CRITICAL: '#ef4444',
+  HIGH: '#f97316',
+  MEDIUM: '#eab308',
+  LOW: '#22c55e',
+};
+
 export const DispatcherMap: React.FC<DispatcherMapProps> = ({
   incidents,
   selectedIncident,
@@ -47,29 +85,17 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
   const popupsRef = useRef<maplibregl.Popup[]>([]);
   const onSelectRef = useRef(onSelectIncident);
 
-  // Keep callback ref fresh
   onSelectRef.current = onSelectIncident;
 
-  // Initialize Map
+  // ── Initialize Map ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
-
-    // Calculate center from incidents or use Philippines default
-    let center: [number, number] = [121.7740, 12.8797];
-    let zoom = 6;
-
-    if (incidents.length > 0) {
-      const avgLng = incidents.reduce((s, i) => s + i.location.coordinates[0], 0) / incidents.length;
-      const avgLat = incidents.reduce((s, i) => s + i.location.coordinates[1], 0) / incidents.length;
-      center = [avgLng, avgLat];
-      zoom = incidents.length === 1 ? 15 : 13;
-    }
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
       style: FREE_OSM_STYLE as any,
-      center,
-      zoom,
+      center: [121.7740, 12.8797], // Philippines center
+      zoom: 6,
       pitch: 0,
       bearing: 0,
       maxZoom: 20,
@@ -97,7 +123,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ResizeObserver for reliable container resize
+  // ── ResizeObserver ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapContainer.current) return;
     const container = mapContainer.current;
@@ -108,24 +134,19 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Recalculate canvas viewport whenever the right drawer opens/closes
+  // ── Panel toggle resize ──────────────────────────────────────────────────
   useEffect(() => {
     if (mapRef.current) {
-      const timer = setTimeout(() => {
-        mapRef.current?.resize();
-      }, 350);
+      const timer = setTimeout(() => mapRef.current?.resize(), 350);
       return () => clearTimeout(timer);
     }
   }, [isRightPanelOpen]);
 
-  // Fly to selected incident
+  // ── Fly to selected incident ─────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || !selectedIncident) return;
-
-    // Close all popups
     popupsRef.current.forEach((p) => p.remove());
     popupsRef.current = [];
-
     mapRef.current.flyTo({
       center: selectedIncident.location.coordinates,
       zoom: 16,
@@ -134,12 +155,11 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     });
   }, [selectedIncident]);
 
-  // Render Markers & Cluster Popups
+  // ── Render spiderified markers ───────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.loaded()) return;
 
-    // Clear old markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
     popupsRef.current.forEach((p) => p.remove());
@@ -147,33 +167,12 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
 
     if (incidents.length === 0) return;
 
-    // Group incidents sharing exact or near coordinates (within ~50m / 0.00045°)
-    const CLUSTER_RADIUS = 0.00045;
-    const groups: IncidentReport[][] = [];
-    const assigned = new Set<string>();
+    const spiderified = applySpiderifyJitter(incidents);
 
-    for (const inc of incidents) {
-      if (assigned.has(inc.id)) continue;
-      const group: IncidentReport[] = [inc];
-      assigned.add(inc.id);
-
-      for (const other of incidents) {
-        if (assigned.has(other.id)) continue;
-        if (
-          Math.abs(inc.location.coordinates[0] - other.location.coordinates[0]) < CLUSTER_RADIUS &&
-          Math.abs(inc.location.coordinates[1] - other.location.coordinates[1]) < CLUSTER_RADIUS
-        ) {
-          group.push(other);
-          assigned.add(other.id);
-        }
-      }
-      groups.push(group);
-    }
-
-    for (const group of groups) {
-      const isCluster = group.length > 1;
-      const primary = group[0];
-      const hasCritical = group.some((i) => i.urgency === 'CRITICAL');
+    spiderified.forEach((inc) => {
+      const color = URGENCY_COLORS[inc.urgency] || '#71717a';
+      const isSelected = selectedIncident?.id === inc.id;
+      const size = isSelected ? 36 : 28;
 
       const el = document.createElement('div');
       el.style.cssText = `
@@ -184,107 +183,61 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
         border-radius: 50%;
         color: white;
         font-weight: 900;
+        font-size: ${isSelected ? 14 : 11}px;
+        width: ${size}px;
+        height: ${size}px;
+        background: ${color};
+        border: 2px solid rgba(255,255,255,0.4);
         box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-        border: 2px solid rgba(255,255,255,0.3);
         transition: transform 0.2s;
+        ${isSelected ? 'transform: scale(1.25); z-index: 10;' : ''}
       `;
-      el.style.backgroundColor = hasCritical ? '#EF4444' : isCluster ? '#F97316' : '#3b82f6';
-      el.style.width = isCluster ? '40px' : '30px';
-      el.style.height = isCluster ? '40px' : '30px';
-      el.style.fontSize = isCluster ? '15px' : '13px';
-      el.innerText = isCluster ? `${group.length}` : '!';
+      el.innerText = inc.type[0] || '!';
 
-      // Highlight if selected
-      if (selectedIncident?.id === primary.id) {
-        el.style.transform = 'scale(1.3)';
-        el.style.zIndex = '10';
+      // Urgency pulse for critical
+      if (inc.urgency === 'CRITICAL') {
+        const ping = document.createElement('div');
+        ping.style.cssText = `position: absolute; width: ${size}px; height: ${size}px; border-radius: 50%; background: ${color}; opacity: 0.4; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;`;
+        el.style.position = 'relative';
+        el.appendChild(ping);
       }
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(primary.location.coordinates)
+        .setLngLat(inc.displayCoords)
         .addTo(map);
 
-      // Create Popup
-      const popupContainer = document.createElement('div');
-      popupContainer.style.cssText = `
-        font-family: system-ui, sans-serif;
-        background: rgba(24,24,27,0.95);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(39,39,42,0.4);
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        color: white;
-        padding: 12px;
-        max-width: 320px;
-        font-size: 12px;
-        overflow: hidden;
-      `;
-
-      const title = document.createElement('div');
-      title.style.cssText = 'font-weight: 700; padding-bottom: 8px; border-bottom: 1px solid #27272a; font-size: 13px;';
-      title.innerText = isCluster ? `${group.length} incidents at this location` : primary.type;
-      popupContainer.appendChild(title);
-
-      if (isCluster) {
-        const hint = document.createElement('div');
-        hint.style.cssText = 'font-size: 10px; color: #71717a; margin-top: 4px; text-align: right;';
-        hint.innerText = 'Click item to open';
-        popupContainer.appendChild(hint);
-      }
-
-      const listContainer = document.createElement('div');
-      listContainer.style.cssText = isCluster ? 'max-height: 250px; overflow-y: auto;' : '';
-
-      group.forEach((item) => {
-        const itemRow = document.createElement('div');
-        itemRow.style.cssText = `
-          padding: 8px;
-          border-bottom: 1px solid #27272a;
-          cursor: pointer;
-          transition: background 0.15s;
-          border-radius: 6px;
-          margin-top: 4px;
-        `;
-        itemRow.onmouseover = () => { itemRow.style.background = 'rgba(63,63,70,0.3)'; };
-        itemRow.onmouseout = () => { itemRow.style.background = 'transparent'; };
-
-        const urgencyColor = item.urgency === 'CRITICAL' ? '#ef4444'
-          : item.urgency === 'HIGH' ? '#f97316'
-          : item.urgency === 'MEDIUM' ? '#eab308'
-          : '#22c55e';
-
-        itemRow.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-weight: 600; color: #fafafa;">${escapeHtml(item.type)}</span>
-            <span style="font-size: 10px; color: ${urgencyColor}; font-weight: 700; text-transform: uppercase;">${escapeHtml(item.urgency)}</span>
-          </div>
-          <p style="color: #a1a1aa; margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; font-size: 11px;">
-            ${escapeHtml(item.condition || item.location.landmarkText)}
-          </p>
-        `;
-
-        // Stop propagation to prevent MapLibre from closing popup before state update
-        itemRow.addEventListener('click', (e) => {
-          e.stopPropagation();
-          onSelectRef.current(item);
-          map.flyTo({
-            center: item.location.coordinates,
-            zoom: 16,
-            essential: true,
-          });
-        });
-
-        listContainer.appendChild(itemRow);
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onSelectRef.current(inc);
+        map.flyTo({ center: inc.displayCoords, zoom: 16, essential: true });
       });
 
-      popupContainer.appendChild(listContainer);
+      // Popup
+      const urgencyColor = URGENCY_COLORS[inc.urgency] || '#71717a';
+      const popupHtml = `
+        <div style="padding: 10px; font-family: system-ui, sans-serif; background: rgba(24,24,27,0.95); backdrop-filter: blur(12px); border: 1px solid rgba(39,39,42,0.4); border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); color: white; max-width: 260px; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+            <span style="font-weight: 700;">${escapeHtml(inc.type)}</span>
+            <span style="font-size: 10px; padding: 2px 6px; border-radius: 9999px; font-weight: 700; background: ${urgencyColor}22; color: ${urgencyColor}; border: 1px solid ${urgencyColor}44;">${escapeHtml(inc.urgency)}</span>
+          </div>
+          <p style="color: #a1a1aa; margin: 0; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(inc.condition)}</p>
+          <p style="color: #71717a; margin: 4px 0 0; font-size: 10px;">${escapeHtml(inc.location.landmarkText)}</p>
+        </div>
+      `;
 
-      const popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false })
-        .setDOMContent(popupContainer);
+      const popup = new maplibregl.Popup({ offset: 20, closeButton: false, maxWidth: '280px' })
+        .setHTML(popupHtml);
 
       marker.setPopup(popup);
       markersRef.current.push(marker);
       popupsRef.current.push(popup);
+    });
+
+    // Auto-fit bounds across all incidents
+    if (spiderified.length > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      spiderified.forEach((inc) => bounds.extend(inc.displayCoords));
+      map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 1000 });
     }
   }, [incidents, selectedIncident]); // eslint-disable-line react-hooks/exhaustive-deps
 
