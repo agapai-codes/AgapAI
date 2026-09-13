@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 import { STATUS_LABELS, STATUS_ORDER, canTransition, nextStatus } from '../types/incident';
+import { IncidentTimeline } from './IncidentTimeline';
 
 interface DispatchIncidentPanelProps {
   incident: IncidentReport;
@@ -386,9 +387,14 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
                 <p key={i} className="text-[10px] text-neutral-400 leading-relaxed">• {w}</p>
               ))}
             </div>
-          )}
+           )}
         </Section>
       )}
+
+      {/* ── ACTIVITY TIMELINE ── */}
+      <div className="px-5 py-3">
+        <IncidentTimeline incidentId={incident.id} />
+      </div>
 
       </div>{/* end scrollable content */}
 

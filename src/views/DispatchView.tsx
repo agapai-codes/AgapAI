@@ -11,10 +11,13 @@ import { Sidebar } from '../components/Sidebar';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
-import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap, MapPin, BarChart3 } from 'lucide-react';
+import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap, MapPin, BarChart3, Download } from 'lucide-react';
 import { incidentToReport, toUrgencyLevel, reportToIncident } from '../types/incident';
 import { sortByUrgencySeverity } from '../utils/queueSorting';
 import { SIMULATION_DEMO_INCIDENTS } from '../utils/incidentTestingSuite';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useIncidentNotifications } from '../hooks/useIncidentNotifications';
+import { exportCSV, exportJSON, exportPrintableReport } from '../utils/export';
 import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
@@ -55,6 +58,7 @@ export default function DispatcherDashboard() {
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState('');
   const [purging, setPurging] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const { queue, triageAll } = useTriage({ incidents, sortBy: 'priority' });
 
@@ -169,7 +173,21 @@ export default function DispatcherDashboard() {
   const handleNavigate = useCallback((route: string) => {
     if (route === 'analytics') router.push('/analytics');
     else if (route === 'dispatcher') router.push('/dispatcher');
+    else if (route === 'responder') router.push('/responder');
   }, [router]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onEscape: () => setSelectedReport(null),
+    onRefresh: () => refresh(),
+    onFilterAll: () => setSelectedUrgency(null),
+    onFilterHigh: () => setSelectedUrgency('HIGH'),
+    onFilterMedium: () => setSelectedUrgency('MEDIUM'),
+    onFilterLow: () => setSelectedUrgency('LOW'),
+  });
+
+  // In-app toast notifications for new incidents
+  useIncidentNotifications();
 
   return (
     <div className="h-screen w-screen overflow-hidden flex bg-[#09090b] text-white font-sans select-none">
@@ -240,6 +258,31 @@ export default function DispatcherDashboard() {
             title="Analytics Dashboard">
             <BarChart3 size={11} />
           </a>
+          {/* Export dropdown */}
+          <div className="relative">
+            <button onClick={() => setShowExport(!showExport)}
+              className="px-2 py-1 bg-white/5 hover:bg-white/10 text-neutral-400 border border-white/10 rounded-md transition-all flex items-center gap-1"
+              title="Export Data">
+              <Download size={11} />
+            </button>
+            {showExport && (
+              <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-white/10 shadow-xl z-50 py-1"
+                style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
+                <button onClick={() => { exportCSV(incidents); setShowExport(false); }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-neutral-300 hover:bg-white/5 transition-colors">
+                  Export CSV
+                </button>
+                <button onClick={() => { exportJSON(incidents); setShowExport(false); }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-neutral-300 hover:bg-white/5 transition-colors">
+                  Export JSON
+                </button>
+                <button onClick={() => { exportPrintableReport(incidents); setShowExport(false); }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-neutral-300 hover:bg-white/5 transition-colors">
+                  Print Report
+                </button>
+              </div>
+            )}
+          </div>
           {user && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 border border-white/10">
               <Shield size={10} className="text-neutral-500" />

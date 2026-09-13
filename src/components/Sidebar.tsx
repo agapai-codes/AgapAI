@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Map, ListOrdered, BarChart3,
-  Settings, ChevronLeft, ChevronRight, LogOut, Shield
+  Settings, ChevronLeft, ChevronRight, LogOut, Shield, Siren
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -15,6 +15,7 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { id: 'dispatcher', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'responder', label: 'Responder', icon: Siren },
   { id: 'map', label: 'Live Map', icon: Map },
   { id: 'queue', label: 'Incidents', icon: ListOrdered },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },

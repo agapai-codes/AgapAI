@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import {
   MapPin, Clock, CheckCircle2, Navigation, ChevronRight, LogOut,
   ArrowLeft, AlertTriangle, Phone, Brain, Wind, Droplets, Activity
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { Sidebar } from '../components/Sidebar';
 import { getFirstAid } from '../lib/firstAid';
 import type { Incident, IncidentStatus } from '../types/incident';
 
@@ -32,6 +34,7 @@ function timeAgo(ts: string): string {
 
 export default function ResponderView() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [loading, setLoading] = useState(true);
@@ -230,24 +233,36 @@ export default function ResponderView() {
     );
   }
 
+  const handleNavigate = useCallback((route: string) => {
+    if (route === 'dispatcher') router.push('/dispatcher');
+    else if (route === 'analytics') router.push('/analytics');
+  }, [router]);
+
   // ── List View ────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
-      <Toaster position="top-center" theme="dark" />
+    <div className="h-screen w-screen overflow-hidden flex bg-[#09090b] text-white font-sans select-none">
+      <Toaster position="top-right" theme="dark" />
+
+      {/* Sidebar */}
+      <Sidebar
+        activeRoute="responder"
+        onNavigate={handleNavigate}
+        user={user}
+        onSignOut={signOut}
+      />
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
       {/* Header */}
-      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4"
+      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4 shrink-0"
         style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
         <div className="flex items-center gap-2.5">
-          <Image src="/logo.jpg" alt="AgapAI" width={22} height={22} className="rounded-md" />
-          <span className="font-extrabold text-sm tracking-wider uppercase">Agap<span className="text-red-500">AI</span></span>
           <span className="text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
             RESPONDER
           </span>
+          <span className="text-[11px] text-neutral-500">{incidents.length} assigned</span>
         </div>
-        <button onClick={signOut} className="text-neutral-500 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5">
-          <LogOut size={16} />
-        </button>
       </header>
 
       <div className="p-4 max-w-lg mx-auto">
@@ -300,6 +315,8 @@ export default function ResponderView() {
           </div>
         )}
       </div>
+
+      </div>{/* end main content */}
     </div>
   );
 }

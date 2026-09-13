@@ -50,6 +50,7 @@ export function useIncidents() {
   const demoIdsRef = useRef(new Set<string>());
   const eventSourceRef = useRef<EventSource | null>(null);
   const useSSE = useRef(true);
+  const knownIdsRef = useRef(new Set<string>());
 
   // ── Apply incident data (shared by SSE and polling) ──────────────────
   const applyIncidentData = useCallback((data: Incident[]) => {
@@ -99,6 +100,17 @@ export function useIncidents() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'update' && Array.isArray(msg.data)) {
+            // Detect new incidents for toast notifications
+            const newIds = msg.data.filter((i: Incident) => !knownIdsRef.current.has(i.id));
+            if (knownIdsRef.current.size > 0 && newIds.length > 0) {
+              // Dispatch custom event for toast notifications
+              newIds.forEach((inc: Incident) => {
+                window.dispatchEvent(new CustomEvent('incident:new', { detail: inc }));
+              });
+            }
+            // Update known IDs
+            msg.data.forEach((i: Incident) => knownIdsRef.current.add(i.id));
+
             applyIncidentData(msg.data);
             setLoading(false);
           }
