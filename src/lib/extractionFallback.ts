@@ -24,10 +24,10 @@ export interface ExtractedInfo {
 function detectType(text: string): IncidentType {
   if (/(fire|burning|smoke|flames|wildfire|arson)/.test(text)) return 'FIRE';
   if (/(accident|collision|crash|vehicle|tricycle|car|motorcycle|motor)/.test(text)) return 'ACCIDENT';
-  if (/(flood|earthquake|typhoon|landslide|storm|volcano|tsunami|disaster|evacuat)/.test(text)) return 'DISASTER';
+  if (/(flood|earthquake|typhoon|landslide|storm|volcano|tsunami|disaster|evacuat)/.test(text)) return 'NATURAL_DISASTER';
   if (/(gun|stab|assault|fight|weapon|shooting|shot|knife|attack|robbery|violence)/.test(text)) return 'VIOLENCE';
-  if (/(chemical|gas leak|toxic|hazmat|radiation|spill|hazardous)/.test(text)) return 'HAZARDOUS';
-  if (/(missing|lost|cannot find|disappeared|looking for)/.test(text)) return 'MISSING_PERSON';
+  if (/(chemical|gas leak|toxic|hazmat|radiation|spill|hazardous)/.test(text)) return 'FIRE';
+  if (/(missing|lost|cannot find|disappeared|looking for)/.test(text)) return 'MEDICAL';
   return 'MEDICAL';
 }
 
@@ -112,10 +112,9 @@ export function detectUnitType(type: IncidentType): UnitType[] {
     case 'FIRE': return ['fire_truck'];
     case 'ACCIDENT': return ['ambulance', 'rescue'];
     case 'MEDICAL': return ['ambulance'];
-    case 'DISASTER': return ['ambulance', 'fire_truck', 'rescue', 'multi_agency'];
+    case 'NATURAL_DISASTER': return ['ambulance', 'fire_truck', 'rescue', 'multi_agency'];
     case 'VIOLENCE': return ['police', 'ambulance'];
-    case 'HAZARDOUS': return ['hazmat', 'fire_truck'];
-    case 'MISSING_PERSON': return ['police', 'rescue'];
+    case 'FIRE': return ['fire_truck'];
     default: return ['ambulance'];
   }
 }

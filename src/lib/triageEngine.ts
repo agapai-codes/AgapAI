@@ -18,14 +18,11 @@ function getRecommendedUnits(type: IncidentType, hazards: string[]): UnitType[] 
     case 'VIOLENCE':
       units.push('police');
       break;
-    case 'DISASTER':
+    case 'NATURAL_DISASTER':
       units.push('rescue', 'multi_agency');
       break;
-    case 'HAZARDOUS':
-      units.push('hazmat', 'fire_truck');
-      break;
-    case 'MISSING_PERSON':
-      units.push('police', 'rescue');
+    case 'FIRE':
+      units.push('fire_truck');
       break;
   }
   return units;
@@ -81,7 +78,7 @@ function getResponseActions(
     });
   }
 
-  if (type === 'FIRE' || type === 'HAZARDOUS') {
+  if (type === 'FIRE') {
     actions.push({
       id: 'perimeter_secure',
       label: 'Perimeter Security',

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
-import LiveMap from '../components/LiveMap';
+import { DispatcherMap } from '../components/DispatcherMap';
+import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
 import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
-import DispatchIncidentDetails from '../components/DispatchIncidentDetails';
-import type { Incident, IncidentStatus, UrgencyLevel } from '../types/incident';
+import { incidentToReport, toUrgencyLevel } from '../types/incident';
+import type { IncidentReport, UrgencyLevel } from '../types/incident';
 
-const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'];
+const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
 const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
   { label: 'ALL', value: null },
   { label: 'CRITICAL', value: 'critical' },
@@ -29,17 +30,17 @@ interface Responder {
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, assignResponder, resolveIncident, getResponders } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, getResponders } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
-  const [activeIncident, setActiveIncident] = useState<Incident | null>(null);
+  const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState('');
   const [responders, setResponders] = useState<Responder[]>([]);
 
   // Triage integration
-  const { queue, triageIncident, triageAll } = useTriage({ incidents, sortBy: 'priority' });
+  const { queue, triageAll } = useTriage({ incidents, sortBy: 'priority' });
 
   useEffect(() => {
     setMounted(true);
@@ -50,29 +51,12 @@ export default function DispatcherDashboard() {
 
   useEffect(() => {
     getResponders().then(setResponders).catch(() => {});
-  }, [getResponders]);
-
-  // Trigger map resize when drawer toggles — use double rAF for reliable layout calc
-  useEffect(() => {
-    let raf1: number;
-    let raf2: number;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        window.dispatchEvent(new Event('resize'));
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
-  }, [activeIncident]);
+  }, []);
 
   // Triage all incidents on load
   useEffect(() => {
-    if (incidents.length > 0) {
-      triageAll();
-    }
-  }, [incidents, triageAll]);
+    if (incidents.length > 0) triageAll();
+  }, [incidents, triageAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const metrics = useMemo(() => ({
     total: incidents.length,
@@ -91,24 +75,23 @@ export default function DispatcherDashboard() {
     return map;
   }, [queue]);
 
+  // Filter and sort incidents
   const filtered = useMemo(() => {
     return incidents
       .filter(i => i.status !== 'RESOLVED')
       .filter(i => {
-        const ms = i.location.toLowerCase().includes(search.toLowerCase()) ||
+        const matchSearch = i.location.toLowerCase().includes(search.toLowerCase()) ||
           i.type.toLowerCase().includes(search.toLowerCase()) ||
           (i.condition || '').toLowerCase().includes(search.toLowerCase()) ||
           (i.description || '').toLowerCase().includes(search.toLowerCase());
-        const mt = selectedType === 'All' || i.type === selectedType;
-        const mu = selectedUrgency === null || (i.urgency || 'medium') === selectedUrgency;
-        return ms && mt && mu;
+        const matchType = selectedType === 'All' || i.type === selectedType;
+        const matchUrgency = selectedUrgency === null || toUrgencyLevel(i.urgency) === selectedUrgency;
+        return matchSearch && matchType && matchUrgency;
       })
       .sort((a, b) => {
-        // Sort by triage priority score using O(1) lookup
         const scoreA = scoreMap.get(a.id) ?? 0;
         const scoreB = scoreMap.get(b.id) ?? 0;
         if (scoreA !== scoreB) return scoreB - scoreA;
-        // Fallback to urgency then time
         const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
         const ua = order[a.urgency || 'medium'] ?? 3;
         const ub = order[b.urgency || 'medium'] ?? 3;
@@ -117,52 +100,24 @@ export default function DispatcherDashboard() {
       });
   }, [incidents, search, selectedType, selectedUrgency, scoreMap]);
 
-  const handleStatusUpdate = async (id: string, status: IncidentStatus) => {
-    const updated = await updateStatus(id, status);
-    if (updated) {
-      setActiveIncident(updated);
-      toast.success(`Incident marked ${status}`);
-    } else {
-      toast.error('Failed to update incident');
-    }
-  };
+  // Convert filtered incidents to IncidentReport for the map
+  const reports = useMemo(() => {
+    return filtered.map(inc => {
+      const triageRationale = queue.find(q => q.incident_id === inc.id)?.triage_result?.urgency_reason;
+      return incidentToReport(inc, triageRationale);
+    });
+  }, [filtered, queue]);
 
-  const handleUrgencyOverride = async (id: string, urgency: UrgencyLevel, reason?: string) => {
-    const updated = await updateUrgency(id, urgency, reason || `Dispatcher override at ${new Date().toLocaleTimeString()}`);
-    if (updated) {
-      setActiveIncident(updated);
-      toast.success(`Urgency updated to ${urgency}`);
-    } else {
-      toast.error('Failed to update urgency');
-    }
-  };
+  // Keep selected report in sync with latest data
+  useEffect(() => {
+    if (!selectedReport) return;
+    const latest = reports.find(r => r.id === selectedReport.id);
+    if (latest) setSelectedReport(latest);
+  }, [reports, selectedReport?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAssign = async (incidentId: string, responderId: string) => {
-    const updated = await assignResponder(incidentId, responderId);
-    if (updated) {
-      setActiveIncident(updated);
-      toast.success('Responder assigned');
-    } else {
-      toast.error('Failed to assign responder');
-    }
+  const handleSelectIncident = (report: IncidentReport) => {
+    setSelectedReport(report);
   };
-
-  const handleResolve = async (notes: string) => {
-    if (!activeIncident) return;
-    const updated = await resolveIncident(activeIncident.id, notes || 'Resolved by dispatcher');
-    if (updated) {
-      setActiveIncident(updated);
-      toast.success('Incident resolved');
-    } else {
-      toast.error('Failed to resolve incident');
-    }
-  };
-
-  // Get triage result for active incident
-  const activeTriageResult = useMemo(() => {
-    if (!activeIncident) return undefined;
-    return queue.find(q => q.incident_id === activeIncident.id)?.triage_result;
-  }, [activeIncident, queue]);
 
   return (
     <div className="w-full h-screen bg-[#0a0c10] text-zinc-50 flex flex-col overflow-hidden font-sans select-none">
@@ -227,7 +182,12 @@ export default function DispatcherDashboard() {
 
         {/* ═══ FULL-WIDTH MAP ═══ */}
         <main className="flex-1 h-full relative overflow-hidden">
-          <LiveMap incidents={filtered} activeIncident={activeIncident} onIncidentClick={setActiveIncident} />
+          <DispatcherMap
+            incidents={reports}
+            selectedIncident={selectedReport}
+            onSelectIncident={handleSelectIncident}
+            isRightPanelOpen={!!selectedReport}
+          />
 
           {/* Floating Search & Filter Bar */}
           <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[360px]">
@@ -293,16 +253,10 @@ export default function DispatcherDashboard() {
         </main>
 
         {/* ═══ RIGHT-SIDE DRAWER ═══ */}
-        {activeIncident && (
-          <DispatchIncidentDetails
-            key={activeIncident.id}
-            incident={activeIncident}
-            triageResult={activeTriageResult}
-            onClose={() => setActiveIncident(null)}
-            onStatusUpdate={handleStatusUpdate}
-            onUrgencyOverride={handleUrgencyOverride}
-            onAssign={handleAssign}
-            onResolve={handleResolve}
+        {selectedReport && (
+          <DispatchIncidentPanel
+            incident={selectedReport}
+            onClose={() => setSelectedReport(null)}
           />
         )}
       </div>

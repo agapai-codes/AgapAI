@@ -8,7 +8,7 @@ import type { ExtractedInfo } from '@/lib/extractionFallback';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_TYPES: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'];
+const VALID_TYPES: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'];
 const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
 
 const PROMPT = `You are an emergency triage AI. Analyze this voice transcript and extract structured information.

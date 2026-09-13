@@ -28,7 +28,7 @@ type ExtractionStep = ExtractionStepKey | null;
 
 function toIncidentType(value: string): IncidentType {
   const upper = value.toUpperCase();
-  const valid: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'];
+  const valid: IncidentType[] = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'];
   if (valid.includes(upper as IncidentType)) return upper as IncidentType;
   return 'MEDICAL';
 }

@@ -1,18 +1,16 @@
 const VALID_URGENCIES = ['critical', 'high', 'medium', 'low'];
-const VALID_INCIDENT_TYPES = ['FIRE', 'ACCIDENT', 'MEDICAL', 'DISASTER', 'VIOLENCE', 'HAZARDOUS', 'MISSING_PERSON'] as const;
+const VALID_INCIDENT_TYPES = ['FIRE', 'ACCIDENT', 'MEDICAL', 'VIOLENCE', 'NATURAL_DISASTER'] as const;
 
 function normalizeIncidentType(raw: string | undefined | null): string {
   if (!raw || typeof raw !== 'string') return 'MEDICAL';
   const upper = raw.trim().toUpperCase().replace(/\s+/g, '_');
-  if ((VALID_INCIDENT_TYPES as readonly string[]).includes(upper)) return upper;
+  if ((VALID_INCIDENT_TYPES as readonly string[]).includes(upper as typeof VALID_INCIDENT_TYPES[number])) return upper;
   // Fuzzy match for common variations
   if (/FIRE|BURN|SMOKE/.test(upper)) return 'FIRE';
   if (/ACCIDENT|CRASH|COLLISION|VEHICLE/.test(upper)) return 'ACCIDENT';
-  if (/MEDIC|INJUR|PAIN|BLEED|UNCONSCIOUS/.test(upper)) return 'MEDICAL';
-  if (/FLOOD|EARTHQUAKE|TYPHOON|LANDSLIDE|DISASTER|STORM/.test(upper)) return 'DISASTER';
+  if (/MEDIC|INJUR|PAIN|BLEED|UNCONSCIOUS|CHEM|GAS|TOXIC|HAZMAT|RADIATION|SPILL|MISS|LOST|DISAPPEAR/.test(upper)) return 'MEDICAL';
+  if (/FLOOD|EARTHQUAKE|TYPHOON|LANDSLIDE|DISASTER|STORM/.test(upper)) return 'NATURAL_DISASTER';
   if (/VIOLEN|GUN|STAB|ASSAULT|FIGHT|WEAPON|SHOOT/.test(upper)) return 'VIOLENCE';
-  if (/CHEM|GAS|TOXIC|HAZMAT|RADIATION|SPILL/.test(upper)) return 'HAZARDOUS';
-  if (/MISS|LOST|DISAPPEAR/.test(upper)) return 'MISSING_PERSON';
   return 'MEDICAL';
 }
 
