@@ -5,12 +5,13 @@ import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
 import { DispatcherMap } from '../components/DispatcherMap';
 import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
-import { DispatcherTestControls } from '../components/DispatcherTestControls';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
 import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
 import { incidentToReport, toUrgencyLevel, sortByUrgency } from '../types/incident';
+import { SIMULATION_DEMO_INCIDENTS } from '../utils/incidentTestingSuite';
+import { reportToIncident } from '../types/incident';
 import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 
 const ALL_TYPES = ['All', 'FIRE', 'ACCIDENT', 'MEDICAL', 'NATURAL_DISASTER', 'VIOLENCE'] as const;
@@ -22,23 +23,16 @@ const ALL_URGENCIES: { label: string; value: UrgencyLevel | null }[] = [
   { label: 'LOW', value: 'LOW' },
 ];
 
-interface Responder {
-  id: string;
-  name: string;
-  email: string;
-  status: string;
-}
-
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, getResponders, purge, loadDemoIncidents } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, purge, loadDemoIncidents } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState('');
-  const [responders, setResponders] = useState<Responder[]>([]);
+  const [purging, setPurging] = useState(false);
 
   const { queue, triageAll } = useTriage({ incidents, sortBy: 'priority' });
 
@@ -48,10 +42,6 @@ export default function DispatcherDashboard() {
     const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(t);
   }, []);
-
-  useEffect(() => {
-    getResponders().then(setResponders).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (incidents.length > 0) triageAll();
@@ -104,10 +94,8 @@ export default function DispatcherDashboard() {
     });
   }, [filtered, queue]);
 
-  // Sort reports by urgency for queue display
   const sortedReports = useMemo(() => [...reports].sort(sortByUrgency), [reports]);
 
-  // Keep selected report in sync with latest data
   useEffect(() => {
     if (!selectedReport) return;
     const latest = reports.find(r => r.id === selectedReport.id);
@@ -136,12 +124,32 @@ export default function DispatcherDashboard() {
     }
   };
 
+  const handlePurge = async () => {
+    if (!confirm('Purge all incidents and reset dashboard to 0?')) return;
+    setPurging(true);
+    try {
+      await purge();
+      setSelectedReport(null);
+      toast.success('All incidents purged');
+    } catch {
+      toast.error('Failed to purge');
+    }
+    setPurging(false);
+  };
+
+  const handleLoadDemos = () => {
+    const demoIncidents = SIMULATION_DEMO_INCIDENTS.map(r => reportToIncident(r));
+    loadDemoIncidents(demoIncidents);
+    setSelectedReport(null);
+    toast.success('4 demo incidents loaded');
+  };
+
   return (
-    <div className="w-full h-screen bg-[#0a0c10] text-zinc-50 flex flex-col overflow-hidden font-sans select-none">
+    <div className="w-screen h-screen bg-[#0a0c10] text-zinc-50 flex flex-col overflow-hidden font-sans select-none">
       <Toaster position="top-right" theme="dark" />
 
-      {/* ── TOP RIBBON ── */}
-      <header className="w-full h-12 min-h-[48px] border-b border-zinc-800/60 bg-[#0a0c10]/95 backdrop-blur-xl px-5 flex items-center justify-between shrink-0 z-30">
+      {/* ── TOP BAR (h-14) ── */}
+      <header className="w-full h-14 min-h-[56px] border-b border-zinc-800/60 bg-[#0a0c10]/95 backdrop-blur-xl px-4 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3">
           <Image src="/logo.jpg" alt="AgapAI" width={24} height={24} className="rounded-lg" />
           <span className="font-black text-base tracking-widest text-zinc-100 uppercase">
@@ -156,53 +164,52 @@ export default function DispatcherDashboard() {
             {loading ? 'SYNCING' : isLive ? 'LIVE' : 'OFFLINE'}
           </span>
         </div>
-        <div className="flex items-center gap-4 text-[11px] font-mono text-zinc-400">
-          {user && (
-            <span className="text-zinc-500">
-              <Shield size={11} className="inline mr-1" />{user.role}
-            </span>
-          )}
-          <button onClick={refresh} className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-md text-zinc-400 hover:bg-zinc-800 transition-colors">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: isLive ? '#22c55e' : '#71717a' }} />
-            <span className="text-zinc-500">MODE:</span> COMMANDER
+
+        {/* ── METRICS (inline in top bar) ── */}
+        <div className="flex items-center gap-1.5">
+          {[
+            { label: 'TOTAL', value: metrics.total, color: '#f4f4f5' },
+            { label: 'CRIT', value: metrics.critical, color: '#ef4444' },
+            { label: 'DISP', value: metrics.dispatched, color: '#60a5fa' },
+            { label: 'TRI', value: metrics.triaged, color: '#a855f7' },
+            { label: 'WAIT', value: metrics.awaitingReview, color: '#fbbf24' },
+            { label: 'UNAS', value: metrics.unassigned, color: '#f97316' },
+            { label: 'RES', value: metrics.resolved, color: '#22c55e' },
+          ].map(m => (
+            <div key={m.label} className="flex flex-col items-center px-2">
+              <span className="text-[7px] font-black tracking-widest text-zinc-500 uppercase">{m.label}</span>
+              <span className="text-sm font-black" style={{ color: m.color }}>{m.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── CONTROLS ── */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePurge}
+            disabled={purging}
+            className="px-3 py-1.5 bg-red-950/80 hover:bg-red-900/80 text-red-300 border border-red-800/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors disabled:opacity-50"
+          >
+            {purging ? 'Purging...' : 'Reset to 0'}
           </button>
-          {mounted && <span className="text-zinc-500">{time}</span>}
-          <DispatcherTestControls
-            onPurge={() => { refresh(); setSelectedReport(null); }}
-            onLoadDemos={(demoIncidents) => { loadDemoIncidents(demoIncidents); setSelectedReport(null); }}
-          />
-          <a href="/" className="text-zinc-500 hover:text-zinc-300 transition-colors">
-            <ArrowLeft size={12} className="inline mr-1" />Citizen
+          <button
+            onClick={handleLoadDemos}
+            className="px-3 py-1.5 bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 border border-zinc-700/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors"
+          >
+            Load Demos
+          </button>
+          {mounted && <span className="text-[10px] text-zinc-500 font-mono">{time}</span>}
+          <a href="/" className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1">
+            <ArrowLeft size={10} /> Citizen
           </a>
         </div>
       </header>
 
-      {/* ── METRICS RIBBON ── */}
-      <div className="w-full h-14 min-h-[56px] grid grid-cols-7 gap-2 px-4 bg-[#0a0c10]/95 backdrop-blur-xl shrink-0 border-b border-zinc-800/60 z-20 items-center">
-        {[
-          { label: 'TOTAL', value: metrics.total, icon: Activity, color: '#f4f4f5' },
-          { label: 'CRITICAL', value: metrics.critical, icon: ShieldAlert, color: '#ef4444' },
-          { label: 'DISPATCHED', value: metrics.dispatched, icon: AlertTriangle, color: '#60a5fa' },
-          { label: 'TRIAGED', value: metrics.triaged, icon: Zap, color: '#a855f7' },
-          { label: 'AWAITING', value: metrics.awaitingReview, icon: Clock, color: '#fbbf24' },
-          { label: 'UNASSIGNED', value: metrics.unassigned, icon: UserX, color: '#f97316' },
-          { label: 'RESOLVED', value: metrics.resolved, icon: CheckCircle2, color: '#22c55e' },
-        ].map(m => (
-          <div key={m.label} className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/50 rounded-lg px-2 py-1.5 flex items-center justify-between">
-            <div>
-              <p className="text-[8px] font-black tracking-widest text-zinc-500 uppercase">{m.label}</p>
-              <h3 className="text-lg font-black mt-0.5" style={{ color: m.color }}>{m.value}</h3>
-            </div>
-            <m.icon size={14} style={{ color: m.color, opacity: 0.5 }} />
-          </div>
-        ))}
-      </div>
+      {/* ── MAIN 3-PANE WORKSPACE ── */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
 
-      {/* ── MAIN WORKSPACE: QUEUE + MAP + DETAIL PANEL ── */}
-      <div className="w-full flex-1 min-h-0 flex flex-row overflow-hidden relative bg-[#0a0c10]">
-
-        {/* ═══ LEFT: INCIDENT QUEUE ═══ */}
-        <div className="w-72 shrink-0 border-r border-zinc-800/60 overflow-y-auto bg-[#0a0c10]/95">
+        {/* ═══ LEFT: INCIDENT QUEUE (w-80) ═══ */}
+        <div className="w-80 shrink-0 border-r border-zinc-800/60 overflow-y-auto bg-[#0a0c10] min-w-0">
           <div className="p-3 border-b border-zinc-800/60 sticky top-0 bg-[#0a0c10] z-10">
             <p className="text-[9px] font-black tracking-widest text-zinc-500 uppercase">INCIDENT QUEUE</p>
             <p className="text-[10px] text-zinc-500 mt-0.5">{sortedReports.length} active</p>
@@ -248,13 +255,13 @@ export default function DispatcherDashboard() {
               );
             })}
             {sortedReports.length === 0 && (
-              <p className="text-[11px] text-zinc-600 text-center py-6">No active incidents</p>
+              <p className="text-[11px] text-zinc-600 text-center py-8">No active incidents</p>
             )}
           </div>
         </div>
 
-        {/* ═══ CENTER: MAP ═══ */}
-        <main className="flex-1 h-full relative overflow-hidden">
+        {/* ═══ CENTER: MAP (flex-1) ═══ */}
+        <div className="flex-1 min-w-0 relative h-full">
           <DispatcherMap
             incidents={reports}
             selectedIncident={selectedReport}
@@ -262,8 +269,8 @@ export default function DispatcherDashboard() {
             isRightPanelOpen={!!selectedReport}
           />
 
-          {/* Floating Search & Filter Bar */}
-          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[320px]">
+          {/* Floating Search & Filters */}
+          <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-[300px]">
             <div className="relative flex items-center w-full">
               <Search size={14} className="text-zinc-500 absolute left-3 pointer-events-none" />
               <input
@@ -271,21 +278,17 @@ export default function DispatcherDashboard() {
                 placeholder="Search incidents..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                aria-label="Search incidents"
                 className="w-full bg-[#0d0f12]/90 backdrop-blur-xl border border-zinc-700/50 rounded-lg pl-9 pr-4 py-2 text-xs font-medium text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 shadow-xl"
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
               {ALL_TYPES.map(type => (
                 <button key={type} onClick={() => setSelectedType(type)}
-                  type="button"
-                  aria-pressed={selectedType === type}
                   className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
                   style={{
                     background: selectedType === type ? '#f4f4f5' : 'rgba(13,15,18,0.8)',
                     color: selectedType === type ? '#09090b' : '#71717a',
                     borderColor: selectedType === type ? '#f4f4f5' : 'rgba(63,63,70,0.3)',
-                    backdropFilter: 'blur(12px)',
                   }}>
                   {type === 'All' ? type : type.replace('_', ' ')}
                 </button>
@@ -294,24 +297,20 @@ export default function DispatcherDashboard() {
             <div className="flex flex-wrap gap-1.5">
               {ALL_URGENCIES.map(u => (
                 <button key={u.label} onClick={() => setSelectedUrgency(u.value)}
-                  type="button"
-                  aria-pressed={selectedUrgency === u.value}
                   className="px-2 py-1 text-[9px] font-black tracking-wider uppercase rounded-md border cursor-pointer transition-all"
                   style={{
                     background: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(13,15,18,0.8)',
                     color: selectedUrgency === u.value ? '#09090b' : '#71717a',
                     borderColor: selectedUrgency === u.value ? '#f4f4f5' : 'rgba(63,63,70,0.3)',
-                    backdropFilter: 'blur(12px)',
                   }}>
                   {u.label}
                 </button>
               ))}
             </div>
-            {error && <p className="text-[10px] text-red-400/80 bg-[#0d0f12]/80 backdrop-blur-xl px-2 py-1 rounded-md">{error}</p>}
           </div>
-        </main>
+        </div>
 
-        {/* ═══ RIGHT: DETAIL PANEL ═══ */}
+        {/* ═══ RIGHT: DETAIL PANEL (w-[420px]) ═══ */}
         {selectedReport && (
           <DispatchIncidentPanel
             incident={selectedReport}
