@@ -268,23 +268,96 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
         </div>
       </div>
 
-      {/* ── VOICE REPORT & TRANSCRIPT ── */}
-      {incident.voiceReport && (
+      {/* ── CALLER VOICE REPORT & TRANSCRIPT ── */}
+      {(incident.voiceReport || incident.relevantContext) && (
         <div className="p-4 border-b border-neutral-800 text-xs">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText size={12} className="text-blue-400" />
-            <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase">VOICE REPORT</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FileText size={12} className="text-blue-400" />
+              <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase">Caller Voice Report &amp; Transcript</span>
+            </div>
+            {incident.aiTriage?.confidence != null && (
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-300 border border-blue-800/40">
+                {Math.round(incident.aiTriage.confidence * 100)}% Accuracy
+              </span>
+            )}
           </div>
-          {incident.voiceReport.audioUrl && (
-            <audio controls className="w-full mb-2 h-8" src={incident.voiceReport.audioUrl}>
-              Your browser does not support the audio element.
-            </audio>
+
+          {/* Audio / TTS Player */}
+          <div className="flex items-center gap-2 mb-3">
+            {incident.voiceReport?.audioUrl ? (
+              <audio controls className="flex-1 h-8" src={incident.voiceReport.audioUrl}>
+                Your browser does not support the audio element.
+              </audio>
+            ) : (
+              <button
+                onClick={() => {
+                  if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(
+                      incident.voiceReport?.transcriptionText || incident.relevantContext || ''
+                    );
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1;
+                    window.speechSynthesis.speak(utterance);
+                  }
+                }}
+                className="flex-1 py-2 px-3 bg-neutral-800 border border-neutral-700 rounded-lg text-[11px] text-neutral-300 hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+                Listen to Report (TTS)
+              </button>
+            )}
+          </div>
+
+          {/* Verbatim Transcript Card */}
+          <div className="bg-neutral-900/60 p-3 rounded-lg border border-neutral-800 relative group">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[11px] text-neutral-300 leading-relaxed font-mono italic whitespace-pre-wrap flex-1">
+                &ldquo;{incident.voiceReport?.transcriptionText || incident.relevantContext || 'No transcript available'}&rdquo;
+              </p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    incident.voiceReport?.transcriptionText || incident.relevantContext || ''
+                  );
+                }}
+                className="shrink-0 px-2 py-1 bg-neutral-800 border border-neutral-700 rounded text-[9px] text-neutral-400 hover:text-white hover:bg-neutral-700 transition-colors opacity-0 group-hover:opacity-100"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          {/* Extracted Keywords / Entities */}
+          {incident.voiceReport?.extractedEntities && Object.keys(incident.voiceReport.extractedEntities).length > 0 && (
+            <div className="mt-3">
+              <p className="text-[9px] font-mono text-neutral-500 uppercase mb-1.5">Extracted Keywords</p>
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(incident.voiceReport.extractedEntities).map(([key, val], i) => (
+                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-300 border border-blue-800/40 font-mono">
+                    {key}: {String(val)}
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
-          <div className="bg-neutral-900/60 p-3 rounded-lg border border-neutral-800 max-h-32 overflow-y-auto">
-            <p className="text-[11px] text-neutral-300 leading-relaxed whitespace-pre-wrap">
-              {incident.voiceReport.transcriptionText || 'No transcript available'}
-            </p>
-          </div>
+          {incident.injuriesSymptoms && incident.injuriesSymptoms.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[9px] font-mono text-neutral-500 uppercase mb-1.5">Key Terms</p>
+              <div className="flex flex-wrap gap-1">
+                {incident.injuriesSymptoms.map((term, i) => (
+                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/40">
+                    {term}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

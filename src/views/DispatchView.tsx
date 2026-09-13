@@ -9,7 +9,8 @@ import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
 import { Search, ArrowLeft, Shield, CheckCircle2, AlertTriangle, ShieldAlert, Activity, Clock, UserX, Zap } from 'lucide-react';
-import { incidentToReport, toUrgencyLevel, sortByUrgency, reportToIncident } from '../types/incident';
+import { incidentToReport, toUrgencyLevel, reportToIncident } from '../types/incident';
+import { sortByUrgencySeverity } from '../utils/queueSorting';
 import { SIMULATION_DEMO_INCIDENTS } from '../utils/incidentTestingSuite';
 import type { IncidentReport, UrgencyLevel, IncidentStatus } from '../types/incident';
 
@@ -93,7 +94,7 @@ export default function DispatcherDashboard() {
     });
   }, [filtered, queue]);
 
-  const sortedReports = useMemo(() => [...reports].sort(sortByUrgency), [reports]);
+  const sortedReports = useMemo(() => [...reports].sort(sortByUrgencySeverity), [reports]);
 
   useEffect(() => {
     if (!selectedReport) return;
