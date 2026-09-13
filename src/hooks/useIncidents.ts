@@ -268,6 +268,25 @@ export function useIncidents() {
     }
   }, []);
 
+  const purge = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/incidents/reset', { method: 'POST' });
+      const payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || 'Purge failed');
+      }
+      setIncidents([]);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to purge incidents');
+      return false;
+    }
+  }, []);
+
+  const loadDemoIncidents = useCallback((demoIncidents: Incident[]) => {
+    setIncidents(demoIncidents);
+  }, []);
+
   return {
     incidents,
     loading,
@@ -283,6 +302,8 @@ export function useIncidents() {
     resolveIncident,
     getRelated,
     getResponders,
+    purge,
+    loadDemoIncidents,
   };
 }
 

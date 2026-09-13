@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
 import { DispatcherMap } from '../components/DispatcherMap';
 import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
+import { DispatcherTestControls } from '../components/DispatcherTestControls';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
 import { useTriage } from '../hooks/useTriage';
@@ -30,7 +31,7 @@ interface Responder {
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, getResponders } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, getResponders, purge, loadDemoIncidents } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
@@ -166,6 +167,10 @@ export default function DispatcherDashboard() {
             <span className="text-zinc-500">MODE:</span> COMMANDER
           </button>
           {mounted && <span className="text-zinc-500">{time}</span>}
+          <DispatcherTestControls
+            onPurge={() => { refresh(); setSelectedReport(null); }}
+            onLoadDemos={(demoIncidents) => { loadDemoIncidents(demoIncidents); setSelectedReport(null); }}
+          />
           <a href="/" className="text-zinc-500 hover:text-zinc-300 transition-colors">
             <ArrowLeft size={12} className="inline mr-1" />Citizen
           </a>

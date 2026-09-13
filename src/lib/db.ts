@@ -403,6 +403,21 @@ export async function findNearbyIncidents(
 }
 
 // ==========================================
+// RESET / PURGE
+// ==========================================
+
+export async function purgeAllIncidents(): Promise<{ deleted: number }> {
+  const sql = getSql();
+  try {
+    const result = (await sql`DELETE FROM incidents RETURNING id`) as { id: string }[];
+    return { deleted: result.length };
+  } catch (err) {
+    console.error('[DB] purgeAllIncidents failed:', err);
+    return { deleted: 0 };
+  }
+}
+
+// ==========================================
 // RESPONDER QUERIES
 // ==========================================
 
