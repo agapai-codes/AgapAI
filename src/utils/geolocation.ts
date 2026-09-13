@@ -34,9 +34,15 @@ export async function getRealCoordinates(): Promise<GeoCoordinates> {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        let lng = position.coords.longitude;
+        let lat = position.coords.latitude;
+        // Guard against [lat, lng] inversion
+        if (lat >= 116 && lat <= 128 && lng >= 4 && lng <= 22) {
+          [lng, lat] = [lat, lng];
+        }
         resolve({
-          lng: position.coords.longitude,
-          lat: position.coords.latitude,
+          lng,
+          lat,
           accuracy: position.coords.accuracy,
         });
       },

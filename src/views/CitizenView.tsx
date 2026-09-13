@@ -9,6 +9,7 @@ import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
 import { useAuth } from '../hooks/useAuth';
 import { getRealCoordinates, getRandomPHCoords } from '../utils/geolocation';
+import { resolveIncidentCoords, isValidPHCoords, sanitizeCoords } from '../utils/coordinates';
 import VoiceRecorder from '../components/VoiceRecorder';
 import { isDemo, isLive, APP_MODE } from '../lib/config';
 import type { IncidentType, UrgencyLevel } from '../types/incident';
@@ -70,7 +71,21 @@ export default function CitizenView() {
       setGpsStatus('loading');
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const coords = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+          let lng = pos.coords.longitude;
+          let lat = pos.coords.latitude;
+          // Guard against inversion: if coords look like [lat, lng], swap them
+          if (lat >= 116 && lat <= 128 && lng >= 4 && lng <= 22) {
+            [lng, lat] = [lat, lng];
+          }
+          // Validate within Philippines bounds
+          if (!isValidPHCoords(lng, lat)) {
+            const fallback = getRandomPHCoords();
+            setGpsCoords(fallback);
+            setGpsStatus('error');
+            resolve(fallback);
+            return;
+          }
+          const coords = { lng, lat };
           setGpsCoords(coords);
           setGpsStatus('ready');
           resolve(coords);

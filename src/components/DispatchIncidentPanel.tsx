@@ -164,9 +164,12 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
               background: incident.location.confidenceScore >= 90 ? 'rgba(34,197,94,0.12)' : incident.location.confidenceScore >= 70 ? 'rgba(234,179,8,0.12)' : 'rgba(239,68,68,0.12)',
               color: incident.location.confidenceScore >= 90 ? '#22c55e' : incident.location.confidenceScore >= 70 ? '#eab308' : '#ef4444',
             }}>
-            GPS {confidencePercent(incident.location.confidenceScore)}
+            GPS {incident.location.confidenceScore}%
           </span>
         </div>
+        <p className="text-[9px] text-neutral-600 mt-1 font-mono">
+          MapLibre: [{incident.location.coordinates[0].toFixed(5)}, {incident.location.coordinates[1].toFixed(5)}]
+        </p>
       </div>
 
       {/* ── VITALS & HAZARDS ── */}
