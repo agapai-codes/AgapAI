@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { Toaster, toast } from 'sonner';
-import { DispatcherMap } from '../components/DispatcherMap';
+const DispatcherMap = dynamic(() => import('../components/DispatcherMap').then(m => m.DispatcherMap), { ssr: false });
 import { DispatchIncidentPanel } from '../components/DispatchIncidentPanel';
 import { useIncidents } from '../hooks/useIncidents';
 import { useAuth } from '../hooks/useAuth';
@@ -43,7 +44,7 @@ const URGENCY_COLORS: Record<string, { color: string; bg: string }> = {
 
 export default function DispatcherDashboard() {
   const { user } = useAuth();
-  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, purge, loadDemoIncidents } = useIncidents();
+  const { incidents, loading, error, isLive, refresh, updateStatus, updateUrgency, resolveIncident, purge, loadDemoIncidents } = useIncidents();
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyLevel | null>(null);
@@ -132,6 +133,16 @@ export default function DispatcherDashboard() {
     const updated = await updateUrgency(id, urgency.toLowerCase() as any, reason);
     if (updated) toast.success(`Urgency updated to ${urgency}`);
     else toast.error('Failed to update urgency');
+  };
+
+  const handleResolve = async (id: string, notes: string) => {
+    const updated = await resolveIncident(id, notes || 'Resolved by dispatcher');
+    if (updated) {
+      toast.success('Incident resolved');
+      setSelectedReport(null);
+    } else {
+      toast.error('Failed to resolve incident');
+    }
   };
 
   const handlePurge = async () => {
@@ -339,6 +350,7 @@ export default function DispatcherDashboard() {
               onStatusUpdate={handleStatusUpdate}
               onUrgencyOverride={handleUrgencyOverride}
               onAssignUnit={(id, unit) => toast.success(`Unit ${unit} assigned to ${id}`)}
+              onResolve={handleResolve}
             />
           </div>
         )}

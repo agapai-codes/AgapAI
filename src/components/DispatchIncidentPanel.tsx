@@ -15,6 +15,7 @@ interface DispatchIncidentPanelProps {
   onStatusUpdate?: (id: string, status: IncidentStatus) => void;
   onUrgencyOverride?: (id: string, urgency: UrgencyLevel, reason: string) => void;
   onAssignUnit?: (id: string, unit: string) => void;
+  onResolve?: (id: string, notes: string) => void;
 }
 
 const URGENCY_STYLE: Record<UrgencyLevel, { color: string; bg: string; border: string }> = {
@@ -71,12 +72,15 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
   onStatusUpdate,
   onUrgencyOverride,
   onAssignUnit,
+  onResolve,
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [overrideUrgency, setOverrideUrgency] = useState<UrgencyLevel | ''>('');
   const [overrideReason, setOverrideReason] = useState('');
   const [assignUnit, setAssignUnit] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showResolve, setShowResolve] = useState(false);
+  const [resolutionNotes, setResolutionNotes] = useState('');
 
   const urgStyle = URGENCY_STYLE[incident.urgency];
   const typeConfig = TYPE_CONFIG[incident.type] || { color: '#71717a', icon: '📋' };
@@ -458,6 +462,35 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Resolve incident */}
+            {onResolve && !isResolved && (
+              <div>
+                <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">RESOLVE INCIDENT</p>
+                {showResolve ? (
+                  <div className="space-y-2">
+                    <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)}
+                      placeholder="Resolution notes (optional)..."
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-neutral-300 placeholder-neutral-600 outline-none resize-y min-h-[60px]" />
+                    <div className="flex gap-2">
+                      <button onClick={() => { onResolve(incident.id, resolutionNotes); setShowResolve(false); setResolutionNotes(''); }}
+                        className="flex-1 py-2 bg-emerald-500 text-black font-bold text-[11px] rounded-lg transition-all hover:bg-emerald-400">
+                        Confirm Resolve
+                      </button>
+                      <button onClick={() => { setShowResolve(false); setResolutionNotes(''); }}
+                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[11px] text-neutral-400 hover:text-white transition-all">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowResolve(true)}
+                    className="w-full py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[11px] font-bold transition-all hover:bg-emerald-500/20">
+                    Resolve Incident
+                  </button>
+                )}
               </div>
             )}
           </div>

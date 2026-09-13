@@ -1,5 +1,5 @@
 // src/hooks/useIncidents.ts
-// Polling-based live incident feed (Vercel-friendly; no websocket server required).
+// Real-time incident feed with SSE + polling fallback.
 
 'use client';
 
@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Incident, IncidentStatus, IncidentType, UrgencyLevel } from '../types/incident';
 
 const POLL_INTERVAL_MS = 5000;
+const SSE_RETRY_MS = 3000;
 
 interface CreateInput {
   type: IncidentType;
@@ -47,7 +48,24 @@ export function useIncidents() {
   const isMounted = useRef(true);
   const inFlight = useRef(false);
   const demoIdsRef = useRef(new Set<string>());
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const useSSE = useRef(true);
 
+  // ── Apply incident data (shared by SSE and polling) ──────────────────
+  const applyIncidentData = useCallback((data: Incident[]) => {
+    setIncidents((prev) => {
+      const apiIds = new Set(data.map((i) => i.id));
+      const preserved = prev.filter(
+        (i) => i.id.startsWith('local-') || demoIdsRef.current.has(i.id)
+      );
+      const localOnly = preserved.filter((i) => !apiIds.has(i.id));
+      return [...localOnly, ...data];
+    });
+    setError(null);
+    setLastSync(new Date());
+  }, []);
+
+  // ── Polling fallback ─────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -58,16 +76,7 @@ export function useIncidents() {
         throw new Error(payload.error || `Request failed (${res.status})`);
       }
       if (!isMounted.current) return;
-      setIncidents((prev) => {
-        const apiIds = new Set(payload.data!.map((i) => i.id));
-        const preserved = prev.filter(
-          (i) => i.id.startsWith('local-') || demoIdsRef.current.has(i.id)
-        );
-        const localOnly = preserved.filter((i) => !apiIds.has(i.id));
-        return [...localOnly, ...payload.data!];
-      });
-      setError(null);
-      setLastSync(new Date());
+      applyIncidentData(payload.data);
     } catch (err) {
       if (!isMounted.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load incidents');
@@ -75,17 +84,66 @@ export function useIncidents() {
       inFlight.current = false;
       if (isMounted.current) setLoading(false);
     }
-  }, []);
+  }, [applyIncidentData]);
 
+  // ── SSE connection ───────────────────────────────────────────────────
+  const connectSSE = useCallback(() => {
+    if (!useSSE.current || !isMounted.current) return;
+
+    try {
+      const es = new EventSource('/api/incidents/stream');
+      eventSourceRef.current = es;
+
+      es.onmessage = (event) => {
+        if (!isMounted.current) return;
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'update' && Array.isArray(msg.data)) {
+            applyIncidentData(msg.data);
+            setLoading(false);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      };
+
+      es.onerror = () => {
+        // SSE failed, fall back to polling
+        useSSE.current = false;
+        es.close();
+        eventSourceRef.current = null;
+        refresh();
+      };
+    } catch {
+      // SSE not supported, use polling
+      useSSE.current = false;
+      refresh();
+    }
+  }, [applyIncidentData, refresh]);
+
+  // ── Initialize: try SSE, fall back to polling ────────────────────────
   useEffect(() => {
     isMounted.current = true;
-    refresh();
-    const id = setInterval(refresh, POLL_INTERVAL_MS);
+
+    // Try SSE first
+    connectSSE();
+
+    // Also set up polling as fallback (runs every 5s if SSE fails)
+    const pollId = setInterval(() => {
+      if (!useSSE.current && isMounted.current) {
+        refresh();
+      }
+    }, POLL_INTERVAL_MS);
+
     return () => {
       isMounted.current = false;
-      clearInterval(id);
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      clearInterval(pollId);
     };
-  }, [refresh]);
+  }, [connectSSE, refresh]);
+
+  // ── CRUD operations ──────────────────────────────────────────────────
 
   const createIncident = useCallback(async (input: CreateInput): Promise<Incident | null> => {
     const optimistic: Incident = {
@@ -200,7 +258,7 @@ export function useIncidents() {
     notes: string | null;
     created_at: string;
   }> | null> => {
-    if (id.startsWith('local-') || id.startsWith('seed-')) return [];
+    if (id.startsWith('local-')) return [];
     try {
       const res = await fetch(`/api/incidents/${id}/history`);
       const payload = await res.json();
@@ -250,7 +308,7 @@ export function useIncidents() {
   }, []);
 
   const getRelated = useCallback(async (id: string): Promise<Incident[] | null> => {
-    if (id.startsWith('local-') || id.startsWith('seed-')) return [];
+    if (id.startsWith('local-')) return [];
     try {
       const res = await fetch(`/api/incidents/${id}/related`);
       const payload = await res.json();
@@ -312,5 +370,3 @@ export function useIncidents() {
     loadDemoIncidents,
   };
 }
-
-// SEED_INCIDENTS removed — dashboard starts empty, populated by DB via /api/incidents
