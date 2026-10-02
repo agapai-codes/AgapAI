@@ -34,15 +34,17 @@ export const DispatcherTestControls: React.FC<DispatcherTestControlsProps> = ({
   return (
     <div className="flex items-center gap-2">
       <button
+        type="button"
         onClick={handlePurge}
         disabled={loading}
-        className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900/80 text-red-300 border border-red-800/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors disabled:opacity-50"
+        className="btn btn-sm btn-outline text-[var(--critical)] hover:border-[var(--critical)] hover:bg-[color-mix(in_srgb,var(--critical)_12%,transparent)]"
       >
-        {loading ? 'Purging...' : 'Reset to 0'}
+        {loading ? 'Purging…' : 'Reset to 0'}
       </button>
       <button
+        type="button"
         onClick={handleLoadDemos}
-        className="px-2.5 py-1 bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 border border-zinc-700/50 rounded text-[10px] font-bold tracking-wider uppercase transition-colors"
+        className="btn btn-sm btn-quiet"
       >
         Load Demos
       </button>

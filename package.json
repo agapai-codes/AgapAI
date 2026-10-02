@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "icons": "python3 scripts/generate-icons.py",
     "db:migrate": "node scripts/run-migration.js",
     "db:seed": "node scripts/seed-auth.js"
   },

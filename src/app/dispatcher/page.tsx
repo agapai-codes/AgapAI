@@ -9,6 +9,8 @@ import Image from 'next/image';
 import { useAuth } from '../../hooks/useAuth';
 import DispatchView from '../../views/DispatchView';
 
+/** One shared sign-in treatment for both roles: dark console, hairline card,
+ *  tracked labels, mono values. Demo credentials always visible. */
 function LoginGate({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,64 +33,85 @@ function LoginGate({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Image src="/logo.jpg" alt="AgapAI" width={36} height={36} className="rounded-lg" />
+    <div className="flex min-h-[calc(100dvh_-_var(--banner-h,0px))] items-center justify-center bg-surface-0 px-4 py-10">
+      <div className="w-full max-w-sm animate-fade-in">
+        {/* Identity */}
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--line)] bg-surface-2 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+            <Image src="/logo.jpg" alt="" width={32} height={32} className="rounded-md" />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-wider uppercase">
-            Agap<span className="text-red-500">AI</span>
+          <h1 className="text-2xl font-extrabold uppercase tracking-[0.16em]">
+            Agap<span className="text-[var(--critical)]">AI</span>
           </h1>
-          <p className="text-[12px] text-neutral-500 mt-1.5">Sign in to the command center</p>
+          <p className="data-label mt-2">Dispatcher access</p>
         </div>
 
-        {/* Form card */}
-        <div className="rounded-2xl p-6 border border-white/10 shadow-2xl"
-          style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)' }}>
+        {/* Card */}
+        <div className="panel p-5 sm:p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-[10px] font-bold tracking-wider text-neutral-500 uppercase mb-1.5 block">Email</label>
-              <input type="email" placeholder="dispatcher@agapai.ph" value={email} onChange={e => setEmail(e.target.value)} required
+              <label htmlFor="dispatcher-email" className="data-label mb-1.5 block">
+                Email
+              </label>
+              <input
+                id="dispatcher-email"
+                type="email"
+                placeholder="dispatcher@agapai.ph"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
                 autoComplete="email"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600
-                  outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition-all
-                  autofill:!bg-white/5 autofill:!text-white" />
+                className="field"
+              />
             </div>
+
             <div>
-              <label className="text-[10px] font-bold tracking-wider text-neutral-500 uppercase mb-1.5 block">Password</label>
-              <input type="password" placeholder="Enter password" value={password} onChange={e => setPassword(e.target.value)} required
+              <label htmlFor="dispatcher-password" className="data-label mb-1.5 block">
+                Password
+              </label>
+              <input
+                id="dispatcher-password"
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
                 autoComplete="current-password"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[13px] text-white placeholder-neutral-600
-                  outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition-all
-                  autofill:!bg-white/5 autofill:!text-white" />
+                className="field"
+              />
             </div>
+
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                <p className="text-[11px] text-red-400">{error}</p>
+              <div
+                role="alert"
+                className="rounded-lg border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.1)] px-3 py-2"
+              >
+                <p className="text-[13px] text-[var(--critical)]">{error}</p>
               </div>
             )}
-            <button type="submit" disabled={loading}
-              className="w-full py-3 bg-white text-black font-bold text-[13px] rounded-lg transition-all hover:bg-neutral-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b]">
+
+            <button type="submit" disabled={loading} className="btn btn-primary w-full">
               {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                  Signing in...
-                </span>
-              ) : 'Sign In'}
+                <>
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-black/25 border-t-black"
+                    aria-hidden
+                  />
+                  Signing in…
+                </>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
         </div>
 
         {/* Demo credentials */}
-        <div className="mt-4 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-            <span className="text-[9px] text-neutral-500">Demo</span>
-            <span className="text-[10px] text-neutral-400 font-mono">dispatcher@agapai.ph</span>
-            <span className="text-[9px] text-neutral-600">/</span>
-            <span className="text-[10px] text-neutral-400 font-mono">agapai123</span>
-          </div>
+        <div className="mt-4 flex justify-center">
+          <p className="chip chip-neutral mono normal-case tracking-normal">
+            <span className="text-ink-3">Demo</span>
+            dispatcher@agapai.ph <span className="text-ink-3">/</span> agapai123
+          </p>
         </div>
       </div>
     </div>
@@ -109,10 +132,10 @@ export default function DispatcherPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-neutral-700 border-t-white rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-[12px] text-neutral-500">Loading...</p>
+      <div className="flex min-h-[calc(100dvh_-_var(--banner-h,0px))] items-center justify-center bg-surface-0">
+        <div className="text-center" role="status" aria-label="Loading">
+          <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-ink-1" />
+          <p className="data-label">Loading</p>
         </div>
       </div>
     );

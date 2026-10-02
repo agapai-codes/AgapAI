@@ -14,6 +14,33 @@ export type IncidentStatus =
   | 'ARRIVED'
   | 'RESOLVED';
 
+// ── WRITE PAYLOAD ────────────────────────────────────────────────────────────
+
+/**
+ * Body accepted by POST /api/incidents.
+ *
+ * Single source of truth shared by the live submit path and the offline queue,
+ * so a report queued without coverage is byte-identical to one sent online.
+ */
+export interface CreateIncidentPayload {
+  type: IncidentType;
+  location: string;
+  description: string;
+  reporter: string;
+  coordinates: { lng: number; lat: number };
+  urgency?: UrgencyLevel;
+  urgency_reason?: string;
+  people_affected?: number;
+  condition?: string;
+  hazards?: string[];
+  transcript?: string;
+  reporter_email?: string;
+  confidence?: number;
+  consciousness?: boolean;
+  breathing?: boolean;
+  bleeding?: boolean;
+}
+
 // ── SUB-SCHEMAS ──────────────────────────────────────────────────────────────
 
 export interface VitalsAssessment {

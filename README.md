@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgapAI — Emergency Response Command Center
 
-## Getting Started
+AI-assisted emergency reporting and dispatch. Citizens report an emergency by
+voice or one-tap SOS; the app triages it, and dispatchers and field responders
+work the queue on a live command centre.
 
-First, run the development server:
+Built with Next.js 16 (App Router) · React 19 · Tailwind v4 · Neon Postgres · Gemini.
+
+---
+
+## Why it's built around "no signal"
+
+This is an emergency app, so it is designed for the moment the cell towers are
+down. It is a full PWA, not just a site with a manifest:
+
+| Layer | What it does |
+| --- | --- |
+| **Installable** | Web manifest + 192/512/maskable icons, installs to the home screen as a standalone app. |
+| **Offline app shell** | `public/sw.js` precaches the core routes and serves them when the network is gone, with a dedicated `/offline` fallback page. |
+| **Durable SOS queue** | Reports that cannot be transmitted are written to IndexedDB (`localStorage` fallback) and survive a reload or reboot. They flush automatically the moment a link returns. |
+| **Zero-coverage extraction** | AI triage normally runs through `/api/extract`. With no network it falls back to the local keyword extractor in `src/lib/extractionFallback.ts`, so a report is *produced and queued* instead of failing. |
+| **Honest connectivity** | `navigator.onLine` lies on phones, so `src/lib/connectivity.ts` actively probes `/api/health` and measures round-trip time. The UI shows `ONLINE` / `SATELLITE LINK` / `NO SIGNAL` based on evidence, and never claims a report was delivered when it was not. |
+| **Satellite-sized beacon** | `toSmsBeacon()` shrinks a report to a single 160-character GSM-7 segment for out-of-band `sms:` / `tel:` handoff, which the OS may route over carrier or satellite messaging when the app's own server is unreachable. |
+
+Storage is marked durable via `navigator.storage.persist()` so the browser
+cannot silently evict a queued emergency report under storage pressure.
+
+---
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Required environment variables (see `.env.local`):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+DATABASE_URL=...        # Neon PostgreSQL
+GEMINI_API_KEY=...      # optional — falls back to local keyword extraction
+AUTH_SECRET=...         # session signing
+```
 
-## Learn More
+### Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm start` | Serve the production build |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest suite |
+| `npm run icons` | Regenerate the PWA icon set from `scripts/generate-icons.py` |
+| `npm run db:migrate` | Apply the database migration |
+| `npm run db:seed` | Seed demo auth users |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Routes
 
-## Deploy on Vercel
+| Route | Audience |
+| --- | --- |
+| `/` | Citizen — SOS beacon, voice report, first-aid guidance |
+| `/dispatcher` | Dispatcher — 3-pane command centre (queue · map · incident detail), plus `/analytics` |
+| `/responder` | Responder — assigned incidents and field close-out |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Demo dispatcher credentials: `dispatcher@agapai.ph` / `agapai123`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Project layout
+
+```
+src/
+  app/           routes, API handlers, manifest, root layout
+  views/         CitizenView · DispatchView · ResponderView
+  components/    feature components (pwa/ = service worker + status banner)
+  hooks/         data, auth, location, offline-queue and connection hooks
+  lib/           auth, db, triage engine, connectivity, offline queue
+  types/         shared incident / triage contracts
+  utils/         coordinates, queue sorting, export
+```
+
+### Key pieces
+
+- `src/lib/connectivity.ts` — link probing, backoff, satellite-like latency classification.
+- `src/lib/offlineQueue.ts` — IndexedDB queue, flush logic, SMS beacon serializer.
+- `src/components/pwa/PwaRuntime.tsx` — service worker registration + install prompt.
+- `src/components/pwa/LinkStatusBanner.tsx` — global connectivity/queue status.
+- `public/sw.js` — the service worker (cache rules are documented inline).
+
+---
+
+## Notes
+
+- The service worker lives in `public/` rather than the bundle on purpose: it
+  needs a stable, unhashed URL so the browser can byte-compare for updates, and
+  a clean `/` scope. `next.config.ts` serves it with `no-cache` and
+  `Service-Worker-Allowed: /`.
+- `experimental.useOffline` is enabled, which gives Next-native connectivity
+  detection plus automatic retry of blocked navigations and Server Actions, and
+  exposes the `useOffline` hook behind `next/offline`.
+- **This Next.js version has breaking changes.** Consult
+  `node_modules/next/dist/docs/` before writing Next-specific code.

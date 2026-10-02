@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import {
-  X, Clock, Sparkles, Brain, Wind,
+  X, Activity, MapPin, Sparkles, Brain, Wind,
   Droplets, ShieldAlert, FileText, ChevronDown, ChevronRight,
   Stethoscope, Send, UserPlus, AlertCircle, Play, Copy, Check
 } from 'lucide-react';
@@ -19,20 +19,21 @@ interface DispatchIncidentPanelProps {
   onResolve?: (id: string, notes: string) => void;
 }
 
+/** Urgency drives all colour in this panel. Type is carried by glyph + word. */
 const URGENCY_STYLE: Record<UrgencyLevel, { color: string; bg: string; border: string }> = {
-  CRITICAL: { color: '#b91c1c', bg: 'rgba(185,28,28,0.12)', border: 'rgba(185,28,28,0.4)' },
-  HIGH: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.4)' },
-  MEDIUM: { color: '#eab308', bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.4)' },
-  LOW: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.4)' },
+  CRITICAL: { color: '#f87171', bg: 'rgba(239,68,68,0.14)', border: 'rgba(239,68,68,0.45)' },
+  HIGH: { color: 'var(--critical)', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)' },
+  MEDIUM: { color: 'var(--warning)', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.35)' },
+  LOW: { color: 'var(--success)', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)' },
 };
 
-const TYPE_CONFIG: Record<string, { color: string; icon: string }> = {
-  FIRE: { color: '#ef4444', icon: '🔥' },
-  ACCIDENT: { color: '#f97316', icon: '🚗' },
-  MEDICAL: { color: '#3b82f6', icon: '🏥' },
-  VIOLENCE: { color: '#f43f5e', icon: '⚠️' },
-  NATURAL_DISASTER: { color: '#a855f7', icon: '🌪️' },
+const TYPE_GLYPH: Record<string, string> = {
+  FIRE: '🔥', ACCIDENT: '🚗', MEDICAL: '🏥', VIOLENCE: '⚠️', NATURAL_DISASTER: '🌪️',
 };
+
+const LIFECYCLE: IncidentStatus[] = [
+  'PENDING', 'REVIEWING', 'PRIORITIZED', 'DISPATCHED', 'EN_ROUTE', 'ARRIVED', 'RESOLVED',
+];
 
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime();
@@ -51,22 +52,22 @@ function confidencePercent(c: number): string {
 
 function Section({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`px-5 py-4 border-b border-white/5 ${className}`}>
+    <div className={`border-b border-[var(--line-faint)] px-4 py-4 sm:px-5 ${className}`}>
       {children}
     </div>
   );
 }
 
-function SectionLabel({ icon: Icon, label, color = 'text-neutral-500' }: { icon: React.ElementType; label: string; color?: string }) {
+function SectionLabel({ icon: Icon, label, tone }: { icon: React.ElementType; label: string; tone?: string }) {
   return (
-    <div className="flex items-center gap-1.5 mb-2.5">
-      <Icon size={11} className={color} />
-      <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: 'inherit' }}>{label}</span>
-    </div>
+    <h3 className="data-label mb-2.5 flex items-center gap-1.5" style={tone ? { color: tone } : undefined}>
+      <Icon size={12} aria-hidden />
+      {label}
+    </h3>
   );
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────────
 
 export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
   incident,
@@ -85,9 +86,10 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
   const [resolutionNotes, setResolutionNotes] = useState('');
 
   const urgStyle = URGENCY_STYLE[incident.urgency];
-  const typeConfig = TYPE_CONFIG[incident.type] || { color: '#71717a', icon: '📋' };
+  const typeGlyph = TYPE_GLYPH[incident.type] || '📋';
   const next = nextStatus(incident.status);
   const isResolved = incident.status === 'RESOLVED';
+  const currentIndex = STATUS_ORDER[incident.status] ?? 0;
 
   const handleStatusAdvance = () => {
     if (next && onStatusUpdate) onStatusUpdate(incident.id, next);
@@ -126,306 +128,329 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
     }
   };
 
-  return (
-    <aside className="w-[420px] bg-[#09090b] text-white border-l border-white/5 h-full flex flex-col z-20 shadow-2xl shrink-0 animate-slide-in-right">
+  const confidenceInk =
+    incident.aiTriage.confidence >= 0.8 ? 'var(--success)'
+    : incident.aiTriage.confidence >= 0.6 ? 'var(--warning)'
+    : 'var(--critical)';
 
+  return (
+    <aside
+      aria-label="Incident detail"
+      className="flex h-full w-full flex-col bg-surface-0 text-white lg:w-[400px]"
+    >
       {/* ── HEADER ── */}
-      <div className="px-5 py-4 border-b border-white/5 flex justify-between items-start shrink-0"
-        style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[18px]">{typeConfig.icon}</span>
-            <h2 className="text-[15px] font-bold text-white truncate leading-tight">{incident.condition}</h2>
+      <div className="chrome flex shrink-0 items-start justify-between gap-3 px-4 py-3.5 sm:px-5">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <span aria-hidden className="text-base leading-none">{typeGlyph}</span>
+            <h2 className="truncate text-[15px] font-bold leading-tight">{incident.condition}</h2>
           </div>
-          <p className="text-[10px] text-neutral-500 font-mono">{incident.id} · {timeAgo(incident.timeReported)}</p>
+          <p className="mono text-2xs text-ink-3">
+            {incident.id} · {timeAgo(incident.timeReported)}
+          </p>
         </div>
-        <button onClick={onClose}
-          className="text-neutral-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg border border-white/10 hover:bg-white/5 transition-all ml-2 shrink-0">
-          <X size={14} />
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close incident detail"
+          className="btn btn-ghost btn-icon shrink-0"
+        >
+          <X size={16} aria-hidden />
         </button>
       </div>
 
-      {/* ── STATUS LIFECYCLE STEPPER ── */}
+      {/* ── LIFECYCLE ── */}
       <Section className="shrink-0 bg-white/[0.02]">
-        <SectionLabel icon={Activity} label="LIFECYCLE" />
-        <div className="flex items-center">
-          {(['PENDING', 'REVIEWING', 'PRIORITIZED', 'DISPATCHED', 'EN_ROUTE', 'ARRIVED', 'RESOLVED'] as IncidentStatus[]).map((s, i) => {
-            const currentIdx = STATUS_ORDER[incident.status];
+        <SectionLabel icon={Activity} label="Lifecycle" />
+        <div
+          className="flex items-center gap-1"
+          role="img"
+          aria-label={`Lifecycle: step ${currentIndex + 1} of ${LIFECYCLE.length}, ${STATUS_LABELS[incident.status]}`}
+        >
+          {LIFECYCLE.map((s, i) => {
             const thisIdx = STATUS_ORDER[s];
-            const isPast = thisIdx < currentIdx;
-            const isCurrent = thisIdx === currentIdx;
-            const color = isPast ? '#22c55e' : isCurrent ? '#60a5fa' : '#334155';
+            const isPast = thisIdx < currentIndex;
+            const isCurrent = thisIdx === currentIndex;
+            const ink = isPast ? 'var(--success)' : isCurrent ? 'var(--info)' : 'var(--line-strong)';
             return (
               <React.Fragment key={s}>
-                {/* Node */}
-                <div className="relative flex flex-col items-center">
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold border-2 transition-all z-10"
-                    style={{
-                      borderColor: color,
-                      background: isPast ? 'rgba(34,197,94,0.15)' : isCurrent ? 'rgba(96,165,250,0.15)' : 'transparent',
-                      color: color,
-                      boxShadow: isCurrent ? `0 0 12px ${color}40` : 'none',
-                    }}
-                  >
-                    {isPast ? '✓' : thisIdx + 1}
-                  </div>
-                  <span className={`text-[7px] mt-1 font-mono whitespace-nowrap ${isCurrent ? 'text-blue-400 font-bold' : isPast ? 'text-emerald-500/70' : 'text-slate-600'}`}>
-                    {STATUS_LABELS[s]}
-                  </span>
-                </div>
-                {/* Connector line */}
-                {i < 6 && (
-                  <div className="flex-1 h-[2px] -mx-1" style={{ background: isPast ? '#22c55e60' : '#1e293b' }} />
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full border-2 transition-colors"
+                  style={{
+                    borderColor: ink,
+                    background: isPast ? ink : isCurrent ? 'transparent' : 'transparent',
+                    boxShadow: isCurrent ? `0 0 0 3px color-mix(in srgb, ${ink} 30%, transparent)` : 'none',
+                  }}
+                />
+                {i < LIFECYCLE.length - 1 && (
+                  <span className="h-px flex-1" style={{ background: isPast ? 'var(--success)' : 'var(--line)' }} />
                 )}
               </React.Fragment>
             );
           })}
         </div>
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <span className="mono text-2xs uppercase tracking-[0.1em] text-ink-3">
+            Step {currentIndex + 1} / {LIFECYCLE.length}
+          </span>
+          <span
+            className="mono text-2xs font-bold uppercase tracking-[0.1em]"
+            style={{ color: incident.status === 'RESOLVED' ? 'var(--success)' : 'var(--info)' }}
+          >
+            {STATUS_LABELS[incident.status]}
+          </span>
+        </div>
       </Section>
 
       {/* ── SCROLLABLE CONTENT ── */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="min-h-0 flex-1 overflow-y-auto">
 
-      {/* ── METADATA GRID ── */}
-      <Section>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white/[0.03] rounded-lg p-2.5 border border-white/5">
-            <span className="text-[8px] text-neutral-500 uppercase block font-mono tracking-wider">TYPE</span>
-            <span className="font-semibold text-neutral-100 text-[12px] mt-0.5 block">{incident.type.replace('_', ' ')}</span>
-          </div>
-          <div className="rounded-lg p-2.5 border" style={{ background: urgStyle.bg, borderColor: urgStyle.border }}>
-            <span className="text-[8px] uppercase block font-mono tracking-wider" style={{ color: urgStyle.color }}>URGENCY</span>
-            <span className="font-bold text-[12px] mt-0.5 block" style={{ color: urgStyle.color }}>{incident.urgency}</span>
-          </div>
-          <div className="bg-white/[0.03] rounded-lg p-2.5 border border-white/5">
-            <span className="text-[8px] text-neutral-500 uppercase block font-mono tracking-wider">PEOPLE</span>
-            <span className="font-semibold text-neutral-100 text-[12px] mt-0.5 block">{incident.peopleCount}</span>
-          </div>
-        </div>
-      </Section>
-
-      {/* ── LOCATION & GPS ── */}
-      <Section>
-        <SectionLabel icon={MapPin} label="LOCATION & COORDINATES" />
-        <p className="font-medium text-neutral-100 text-[13px]">{incident.location.landmarkText}</p>
-        <div className="flex items-center justify-between mt-1.5">
-          <p className="font-mono text-neutral-400 text-[11px]">
-            {incident.location.coordinates[1].toFixed(5)}, {incident.location.coordinates[0].toFixed(5)}
-          </p>
-          <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold"
-            style={{
-              background: incident.location.confidenceScore >= 90 ? 'rgba(34,197,94,0.15)' : incident.location.confidenceScore >= 70 ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
-              color: incident.location.confidenceScore >= 90 ? '#22c55e' : incident.location.confidenceScore >= 70 ? '#eab308' : '#ef4444',
-            }}>
-            GPS {incident.location.confidenceScore}%
-          </span>
-        </div>
-      </Section>
-
-      {/* ── VITALS & HAZARDS ── */}
-      <Section>
-        <SectionLabel icon={Activity} label="VITALS ASSESSMENT" color="text-red-400" />
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: 'Conscious', value: incident.vitals.conscious, icon: Brain, adverse: incident.vitals.conscious === false },
-            { label: 'Breathing', value: incident.vitals.breathing, icon: Wind, adverse: incident.vitals.breathing === false },
-            { label: 'Bleeding', value: incident.vitals.bleeding, icon: Droplets, adverse: incident.vitals.bleeding === true },
-          ].map(v => (
-            <div key={v.label} className="p-2.5 rounded-lg text-center border"
-              style={{
-                background: v.adverse ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)',
-                borderColor: v.adverse ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.2)',
-              }}>
-              <v.icon size={13} className={`mx-auto mb-1 ${v.adverse ? 'text-red-400' : 'text-emerald-400'}`} />
-              <p className="text-[8px] uppercase font-mono tracking-wider" style={{ color: '#94a3b8' }}>{v.label}</p>
-              <p className="font-bold text-[13px] mt-0.5" style={{ color: v.adverse ? '#f87171' : '#4ade80' }}>
-                {v.value === null ? '—' : v.value ? 'YES' : 'NO'}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Hazards */}
-        {incident.hazards.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#94a3b8' }}>Identified Hazards</p>
-            <div className="flex flex-wrap gap-1.5">
-              {incident.hazards.map((h, i) => (
-                <span key={i} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
-                  style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
-                  <ShieldAlert size={9} /> {h}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Injuries */}
-        {incident.injuriesSymptoms.length > 0 && (
-          <div className="mt-2">
-            <p className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#94a3b8' }}>Injuries / Symptoms</p>
-            <div className="flex flex-wrap gap-1.5">
-              {incident.injuriesSymptoms.map((s, i) => (
-                <span key={i} className="text-[10px] px-2.5 py-1 rounded-lg font-semibold"
-                  style={{ background: 'rgba(239,68,68,0.08)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </Section>
-
-      {/* ── AI DECISION SUPPORT ── */}
-      <Section>
-        <SectionLabel icon={Sparkles} label="AI DECISION SUPPORT" color="text-purple-400" />
-
-        {/* Confidence bar */}
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${incident.aiTriage.confidence * 100}%`,
-                background: incident.aiTriage.confidence >= 0.8 ? '#22c55e' : incident.aiTriage.confidence >= 0.6 ? '#eab308' : '#f97316',
-                animation: 'confidence-fill 1s ease-out',
-              }}
-            />
-          </div>
-          <span className="text-[11px] font-bold font-mono"
-            style={{ color: incident.aiTriage.confidence >= 0.8 ? '#22c55e' : incident.aiTriage.confidence >= 0.6 ? '#eab308' : '#f97316' }}>
-            {confidencePercent(incident.aiTriage.confidence)}
-          </span>
-        </div>
-
-        {/* Contributing factors */}
-        {incident.aiTriage.contributingFactors.length > 0 && (
-          <div className="mb-3">
-            <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">CONTRIBUTING FACTORS</p>
-            <div className="flex flex-wrap gap-1">
-              {incident.aiTriage.contributingFactors.map((f, i) => (
-                <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Rationale */}
-        <div className="bg-white/[0.03] p-3 rounded-lg border border-white/5">
-          <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">RATIONALE</p>
-          <p className="italic text-neutral-300 text-[11px] leading-relaxed">&ldquo;{incident.aiTriage.rationaleNote}&rdquo;</p>
-        </div>
-
-        {/* Disclaimer */}
-        <div className="mt-3 flex items-start gap-2 bg-amber-500/5 border border-amber-500/15 rounded-lg p-2.5">
-          <AlertCircle size={11} className="text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-amber-300/70 leading-relaxed">
-            AI provides decision support only. The human dispatcher maintains final operational authority.
-          </p>
-        </div>
-      </Section>
-
-      {/* ── CALLER VOICE REPORT & TRANSCRIPT ── */}
-      {(incident.voiceReport || incident.relevantContext) && (
+        {/* ── METADATA GRID ── */}
         <Section>
-          <div className="flex items-center justify-between mb-2.5">
-            <SectionLabel icon={FileText} label="CALLER VOICE REPORT" color="text-blue-400" />
-            {incident.aiTriage?.confidence != null && (
-              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                {Math.round(incident.aiTriage.confidence * 100)}% Accuracy
-              </span>
-            )}
-          </div>
-
-          {/* Audio / TTS Player */}
-          <div className="flex items-center gap-2 mb-3">
-            {incident.voiceReport?.audioUrl ? (
-              <audio controls className="flex-1 h-8 rounded-lg" src={incident.voiceReport.audioUrl}>
-                Your browser does not support the audio element.
-              </audio>
-            ) : (
-              <button onClick={handleTTS}
-                className="flex-1 py-2.5 px-3 bg-white/5 border border-white/10 rounded-lg text-[11px] text-neutral-300 hover:bg-white/10 transition-all flex items-center justify-center gap-2">
-                <Play size={12} /> Listen to Report (TTS)
-              </button>
-            )}
-          </div>
-
-          {/* Transcript card */}
-          <div className="bg-white/[0.03] p-3 rounded-lg border border-white/5 relative group">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[11px] text-neutral-300 leading-relaxed font-mono italic whitespace-pre-wrap flex-1">
-                &ldquo;{incident.voiceReport?.transcriptionText || incident.relevantContext || 'No transcript available'}&rdquo;
-              </p>
-              <button onClick={handleCopy}
-                className="shrink-0 px-2 py-1 bg-white/5 border border-white/10 rounded text-[9px] text-neutral-400 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100 flex items-center gap-1">
-                {copied ? <><Check size={9} /> Copied</> : <><Copy size={9} /> Copy</>}
-              </button>
+          <dl className="grid grid-cols-3 gap-2">
+            <div className="well p-2.5">
+              <dt className="data-label mb-0.5">Type</dt>
+              <dd className="text-xs font-semibold uppercase leading-tight">{incident.type.replace('_', ' ')}</dd>
             </div>
+            <div
+              className="rounded-lg border p-2.5"
+              style={{ background: urgStyle.bg, borderColor: urgStyle.border }}
+            >
+              <dt className="data-label mb-0.5" style={{ color: urgStyle.color }}>Urgency</dt>
+              <dd className="text-xs font-bold uppercase" style={{ color: urgStyle.color }}>{incident.urgency}</dd>
+            </div>
+            <div className="well p-2.5">
+              <dt className="data-label mb-0.5">People</dt>
+              <dd className="readout text-base">{incident.peopleCount}</dd>
+            </div>
+          </dl>
+        </Section>
+
+        {/* ── LOCATION & GPS ── */}
+        <Section>
+          <SectionLabel icon={MapPin} label="Location" />
+          <p className="text-sm font-medium leading-snug">{incident.location.landmarkText}</p>
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <p className="mono text-xs text-ink-2">
+              {incident.location.coordinates[1].toFixed(5)}, {incident.location.coordinates[0].toFixed(5)}
+            </p>
+            <span
+              className={`chip ${
+                incident.location.confidenceScore >= 90 ? 'chip-success'
+                : incident.location.confidenceScore >= 70 ? 'chip-warning'
+                : 'chip-critical'
+              }`}
+            >
+              GPS {incident.location.confidenceScore}%
+            </span>
+          </div>
+        </Section>
+
+        {/* ── VITALS & HAZARDS ── */}
+        <Section>
+          <SectionLabel icon={Activity} label="Vitals" tone="var(--critical)" />
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Conscious', value: incident.vitals.conscious, icon: Brain, adverse: incident.vitals.conscious === false },
+              { label: 'Breathing', value: incident.vitals.breathing, icon: Wind, adverse: incident.vitals.breathing === false },
+              { label: 'Bleeding', value: incident.vitals.bleeding, icon: Droplets, adverse: incident.vitals.bleeding === true },
+            ].map(v => (
+              <div
+                key={v.label}
+                className="rounded-lg border p-2.5 text-center"
+                style={{
+                  background: v.adverse ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.06)',
+                  borderColor: v.adverse ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.25)',
+                }}
+              >
+                <v.icon size={13} className={`mx-auto mb-1 ${v.adverse ? 'text-[var(--critical)]' : 'text-[var(--success)]'}`} aria-hidden />
+                <p className="data-label leading-none">{v.label}</p>
+                <p
+                  className="mono mt-1 text-sm font-bold"
+                  style={{ color: v.adverse ? 'var(--critical)' : 'var(--success)' }}
+                >
+                  {v.value === null ? '—' : v.value ? 'YES' : 'NO'}
+                </p>
+              </div>
+            ))}
           </div>
 
-          {/* Keywords */}
-          {incident.injuriesSymptoms && incident.injuriesSymptoms.length > 0 && (
-            <div className="mt-2.5">
-              <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">KEY TERMS</p>
-              <div className="flex flex-wrap gap-1">
-                {incident.injuriesSymptoms.map((term, i) => (
-                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                    {term}
-                  </span>
+          {incident.hazards.length > 0 && (
+            <div className="mt-3">
+              <p className="data-label mb-1.5">Identified hazards</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {incident.hazards.map((h, i) => (
+                  <li key={i} className="chip chip-warning">
+                    <ShieldAlert size={11} aria-hidden /> {h}
+                  </li>
                 ))}
-              </div>
+              </ul>
+            </div>
+          )}
+
+          {incident.injuriesSymptoms.length > 0 && (
+            <div className="mt-3">
+              <p className="data-label mb-1.5">Injuries / symptoms</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {incident.injuriesSymptoms.map((s, i) => (
+                  <li key={i} className="chip chip-critical normal-case tracking-normal">{s}</li>
+                ))}
+              </ul>
             </div>
           )}
         </Section>
-      )}
 
-      {/* ── FIRST-AID PROTOCOL ── */}
-      {incident.firstAidGuidance && (
+        {/* ── AI DECISION SUPPORT ── */}
         <Section>
-          <SectionLabel icon={Stethoscope} label={incident.firstAidGuidance.title} color="text-emerald-400" />
-          <p className="text-[10px] text-neutral-500 font-mono mb-2">{incident.firstAidGuidance.source}</p>
-          <ol className="list-decimal list-inside space-y-1 text-neutral-300 mb-2">
-            {incident.firstAidGuidance.steps.map((step, i) => (
-              <li key={i} className="leading-relaxed text-[11px]">{step}</li>
-            ))}
-          </ol>
-          {incident.firstAidGuidance.warnings.length > 0 && (
-            <div className="bg-red-500/5 border border-red-500/15 rounded-lg p-2.5 mt-2">
-              <p className="text-[10px] font-bold text-red-400 mb-1">⚠ WARNINGS</p>
-              {incident.firstAidGuidance.warnings.map((w, i) => (
-                <p key={i} className="text-[10px] text-neutral-400 leading-relaxed">• {w}</p>
-              ))}
-            </div>
-           )}
-        </Section>
-      )}
+          <SectionLabel icon={Sparkles} label="Triage support" tone="var(--info)" />
 
-      {/* ── ACTIVITY TIMELINE ── */}
-      <div className="px-5 py-3">
-        <IncidentTimeline incidentId={incident.id} />
-      </div>
+          <div className="mb-3 flex items-center gap-3">
+            <div
+              className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5"
+              role="meter"
+              aria-valuenow={Math.round(incident.aiTriage.confidence * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Triage confidence"
+            >
+              <div
+                className="h-full rounded-full transition-[width] duration-500"
+                style={{ width: `${incident.aiTriage.confidence * 100}%`, background: confidenceInk }}
+              />
+            </div>
+            <span className="mono text-xs font-bold" style={{ color: confidenceInk }}>
+              {confidencePercent(incident.aiTriage.confidence)}
+            </span>
+          </div>
+
+          {incident.aiTriage.contributingFactors.length > 0 && (
+            <div className="mb-3">
+              <p className="data-label mb-1.5">Contributing factors</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {incident.aiTriage.contributingFactors.map((f, i) => (
+                  <li key={i} className="chip chip-info normal-case tracking-normal">{f}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="well p-3">
+            <p className="data-label mb-1">Rationale</p>
+            <p className="text-xs italic leading-relaxed text-ink-2">
+              “{incident.aiTriage.rationaleNote}”
+            </p>
+          </div>
+
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-[rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.07)] p-2.5">
+            <AlertCircle size={12} className="mt-0.5 shrink-0 text-[var(--warning)]" aria-hidden />
+            <p className="text-xs leading-relaxed text-ink-2">
+              Decision support only. The dispatcher keeps final operational authority.
+            </p>
+          </div>
+        </Section>
+
+        {/* ── CALLER VOICE REPORT & TRANSCRIPT ── */}
+        {(incident.voiceReport || incident.relevantContext) && (
+          <Section>
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <SectionLabel icon={FileText} label="Caller report" tone="var(--info)" />
+              {incident.aiTriage?.confidence != null && (
+                <span className="chip chip-info mono tracking-normal">
+                  {Math.round(incident.aiTriage.confidence * 100)}% match
+                </span>
+              )}
+            </div>
+
+            <div className="mb-3 flex items-center gap-2">
+              {incident.voiceReport?.audioUrl ? (
+                <audio controls className="h-9 w-full rounded-lg" src={incident.voiceReport.audioUrl}>
+                  Your browser does not support the audio element.
+                </audio>
+              ) : (
+                <button type="button" onClick={handleTTS} className="btn btn-sm btn-quiet w-full">
+                  <Play size={12} aria-hidden /> Listen to report
+                </button>
+              )}
+            </div>
+
+            <div className="well group relative p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="mono flex-1 whitespace-pre-wrap text-xs italic leading-relaxed text-ink-2">
+                  “{incident.voiceReport?.transcriptionText || incident.relevantContext || 'No transcript available'}”
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  aria-label="Copy transcript"
+                  className="btn btn-ghost btn-sm shrink-0 opacity-100 focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                >
+                  {copied ? <><Check size={11} aria-hidden /> Copied</> : <><Copy size={11} aria-hidden /> Copy</>}
+                </button>
+              </div>
+            </div>
+
+            {incident.injuriesSymptoms && incident.injuriesSymptoms.length > 0 && (
+              <div className="mt-2.5">
+                <p className="data-label mb-1.5">Key terms</p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {incident.injuriesSymptoms.map((term, i) => (
+                    <li key={i} className="chip chip-neutral normal-case tracking-normal">{term}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* ── FIRST-AID PROTOCOL ── */}
+        {incident.firstAidGuidance && (
+          <Section>
+            <SectionLabel icon={Stethoscope} label={incident.firstAidGuidance.title} tone="var(--success)" />
+            <p className="mono mb-2 text-2xs text-ink-3">{incident.firstAidGuidance.source}</p>
+            <ol className="mb-2 space-y-1.5">
+              {incident.firstAidGuidance.steps.map((step, i) => (
+                <li key={i} className="flex gap-2.5 text-xs leading-relaxed text-ink-2">
+                  <span className="mono shrink-0 font-bold text-[var(--success)]">{i + 1}.</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+            {incident.firstAidGuidance.warnings.length > 0 && (
+              <div className="mt-2 rounded-lg border border-[rgba(239,68,68,0.28)] bg-[rgba(239,68,68,0.07)] p-2.5">
+                <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--critical)]">Do not</p>
+                <ul className="space-y-1">
+                  {incident.firstAidGuidance.warnings.map((w, i) => (
+                    <li key={i} className="text-xs leading-relaxed text-ink-2">{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* ── ACTIVITY TIMELINE ── */}
+        <div className="px-4 py-3 sm:px-5">
+          <IncidentTimeline incidentId={incident.id} />
+        </div>
 
       </div>{/* end scrollable content */}
 
       {/* ── ACTIONS (sticky bottom) ── */}
-      <div className="px-5 py-4 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
-        {/* Status advance button */}
+      <div className="shrink-0 border-t border-[var(--line)] bg-surface-1 px-4 py-3.5 sm:px-5">
         {next && !isResolved && onStatusUpdate && (
-          <button onClick={handleStatusAdvance}
-            className="w-full py-2.5 px-3 bg-white text-black font-bold text-[12px] rounded-lg hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 mb-2">
-            <Send size={12} /> Mark as {STATUS_LABELS[next]}
+          <button type="button" onClick={handleStatusAdvance} className="btn btn-primary mb-2 w-full">
+            <Send size={13} aria-hidden /> Mark as {STATUS_LABELS[next]}
           </button>
         )}
 
-        {/* Collapse actions */}
-        <button onClick={() => setShowActions(!showActions)}
-          className="w-full flex items-center justify-between text-[9px] font-black tracking-widest text-neutral-500 uppercase hover:text-neutral-300 transition-colors py-1">
-          <span>More Actions</span>
-          {showActions ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <button
+          type="button"
+          onClick={() => setShowActions(!showActions)}
+          className="data-label flex w-full items-center justify-between py-1 transition-colors hover:text-ink-1"
+          aria-expanded={showActions}
+        >
+          <span>More actions</span>
+          {showActions ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
         </button>
 
         {showActions && (
@@ -433,44 +458,61 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
             {/* Urgency override */}
             {onUrgencyOverride && (
               <div>
-                <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">URGENCY OVERRIDE</p>
+                <label className="data-label mb-1 block" htmlFor="urgency-override">Urgency override</label>
                 <div className="flex gap-2">
-                  <select value={overrideUrgency} onChange={e => setOverrideUrgency(e.target.value as UrgencyLevel | '')}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-neutral-200 outline-none">
-                    <option value="">Select...</option>
+                  <select
+                    id="urgency-override"
+                    value={overrideUrgency}
+                    onChange={e => setOverrideUrgency(e.target.value as UrgencyLevel | '')}
+                    className="field flex-1 py-1.5 text-xs"
+                  >
+                    <option value="">Select…</option>
                     <option value="CRITICAL">CRITICAL</option>
                     <option value="HIGH">HIGH</option>
                     <option value="MEDIUM">MEDIUM</option>
                     <option value="LOW">LOW</option>
                   </select>
-                  <button onClick={handleOverride} disabled={!overrideUrgency}
-                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[11px] text-neutral-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                  <button type="button" onClick={handleOverride} disabled={!overrideUrgency} className="btn btn-sm btn-quiet">
                     Apply
                   </button>
                 </div>
-                <input type="text" value={overrideReason} onChange={e => setOverrideReason(e.target.value)}
+                <input
+                  type="text"
+                  value={overrideReason}
+                  onChange={e => setOverrideReason(e.target.value)}
                   placeholder="Override reason (optional)"
-                  className="w-full mt-1.5 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-neutral-300 placeholder-neutral-600 outline-none" />
+                  aria-label="Override reason"
+                  className="field mt-1.5 py-1.5 text-xs"
+                />
               </div>
             )}
 
             {/* Unit assignment */}
             {onAssignUnit && (
               <div>
-                <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">ASSIGN UNIT</p>
+                <label className="data-label mb-1 block" htmlFor="assign-unit">Assign unit</label>
                 <div className="flex gap-2">
-                  <select value={assignUnit} onChange={e => setAssignUnit(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-neutral-200 outline-none">
-                    <option value="">Select unit...</option>
+                  <select
+                    id="assign-unit"
+                    value={assignUnit}
+                    onChange={e => setAssignUnit(e.target.value)}
+                    className="field flex-1 py-1.5 text-xs"
+                  >
+                    <option value="">Select unit…</option>
                     <option value="AMBULANCE">🚑 Ambulance</option>
-                    <option value="FIRE_TRUCK">🚒 Fire Engine</option>
-                    <option value="PATROL">🚔 Patrol Unit</option>
-                    <option value="RESCUE">🛟 Rescue Team</option>
+                    <option value="FIRE_TRUCK">🚒 Fire engine</option>
+                    <option value="PATROL">🚔 Patrol</option>
+                    <option value="RESCUE">🛟 Rescue team</option>
                     <option value="HAZMAT">☢️ Hazmat</option>
                   </select>
-                  <button onClick={handleAssign} disabled={!assignUnit}
-                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[11px] text-neutral-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                    <UserPlus size={12} />
+                  <button
+                    type="button"
+                    onClick={handleAssign}
+                    disabled={!assignUnit}
+                    aria-label="Assign selected unit"
+                    className="btn btn-sm btn-quiet"
+                  >
+                    <UserPlus size={13} aria-hidden />
                   </button>
                 </div>
               </div>
@@ -479,41 +521,48 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
             {/* Assigned units */}
             {incident.assignedUnits.length > 0 && (
               <div>
-                <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">ASSIGNED UNITS</p>
-                <div className="flex flex-wrap gap-1">
+                <p className="data-label mb-1.5">Assigned units</p>
+                <ul className="flex flex-wrap gap-1.5">
                   {incident.assignedUnits.map((u, i) => (
-                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                      {u}
-                    </span>
+                    <li key={i} className="chip chip-info mono tracking-normal normal-case">{u}</li>
                   ))}
-                </div>
+                </ul>
               </div>
             )}
 
             {/* Resolve incident */}
             {onResolve && !isResolved && (
               <div>
-                <p className="text-[8px] font-mono text-neutral-500 uppercase tracking-wider mb-1">RESOLVE INCIDENT</p>
+                <p className="data-label mb-1.5">Resolve incident</p>
                 {showResolve ? (
                   <div className="space-y-2">
-                    <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)}
-                      placeholder="Resolution notes (optional)..."
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-neutral-300 placeholder-neutral-600 outline-none resize-y min-h-[60px]" />
+                    <textarea
+                      value={resolutionNotes}
+                      onChange={e => setResolutionNotes(e.target.value)}
+                      placeholder="Resolution notes (optional)…"
+                      aria-label="Resolution notes"
+                      className="field min-h-[64px] resize-y py-1.5 text-xs"
+                    />
                     <div className="flex gap-2">
-                      <button onClick={() => { onResolve(incident.id, resolutionNotes); setShowResolve(false); setResolutionNotes(''); }}
-                        className="flex-1 py-2 bg-emerald-500 text-black font-bold text-[11px] rounded-lg transition-all hover:bg-emerald-400">
-                        Confirm Resolve
+                      <button
+                        type="button"
+                        onClick={() => { onResolve(incident.id, resolutionNotes); setShowResolve(false); setResolutionNotes(''); }}
+                        className="btn btn-sm btn-success flex-1"
+                      >
+                        Confirm resolve
                       </button>
-                      <button onClick={() => { setShowResolve(false); setResolutionNotes(''); }}
-                        className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[11px] text-neutral-400 hover:text-white transition-all">
+                      <button
+                        type="button"
+                        onClick={() => { setShowResolve(false); setResolutionNotes(''); }}
+                        className="btn btn-sm btn-ghost"
+                      >
                         Cancel
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => setShowResolve(true)}
-                    className="w-full py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[11px] font-bold transition-all hover:bg-emerald-500/20">
-                    Resolve Incident
+                  <button type="button" onClick={() => setShowResolve(true)} className="btn btn-outline w-full text-[var(--success)]">
+                    Resolve incident
                   </button>
                 )}
               </div>
@@ -524,8 +573,5 @@ export const DispatchIncidentPanel: React.FC<DispatchIncidentPanelProps> = ({
     </aside>
   );
 };
-
-// Re-export Activity from lucide for lifecycle bar
-import { Activity, MapPin } from 'lucide-react';
 
 export default DispatchIncidentPanel;

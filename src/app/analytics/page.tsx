@@ -2,8 +2,72 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { ArrowLeft, Activity, Clock, AlertTriangle, CheckCircle2, TrendingUp, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Activity, Clock, AlertTriangle, CheckCircle2, BarChart3, TrendingUp } from 'lucide-react';
 import type { Incident } from '../../types/incident';
+
+/** Status tone — four accents, no per-status hue. */
+const STATUS_TONE: Record<string, string> = {
+  PENDING: 'var(--warning)',
+  REVIEWING: 'var(--info)',
+  PRIORITIZED: 'var(--critical)',
+  DISPATCHED: 'var(--info)',
+  EN_ROUTE: 'var(--info)',
+  ARRIVED: 'var(--success)',
+  RESOLVED: 'var(--success)',
+};
+
+const URGENCY_TONE: Record<string, string> = {
+  CRITICAL: 'var(--critical)',
+  HIGH: 'var(--critical)',
+  MEDIUM: 'var(--warning)',
+  LOW: 'var(--success)',
+};
+
+/** The readout band: label above, mono value below, hairline dividers. */
+function Readout({ label, value, ink, icon: Icon }: {
+  label: string;
+  value: string | number;
+  ink?: string;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+}) {
+  return (
+    <div className="flex min-w-[104px] flex-1 flex-col justify-center border-r border-[var(--line-faint)] px-4 py-3 last:border-r-0">
+      <span className="data-label data-label-tight flex items-center gap-1.5">
+        {Icon && <Icon size={11} aria-hidden />}
+        {label}
+      </span>
+      <span className="readout mt-1 text-2xl leading-none" style={{ color: ink }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/** One horizontal bar row shared by the urgency / type / status breakdowns. */
+function BarRow({ label, count, total, ink, mono }: {
+  label: string;
+  count: number;
+  total: number;
+  ink: string;
+  mono?: boolean;
+}) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <li className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3">
+      <span className={`truncate text-[12px] text-ink-2 ${mono ? 'mono uppercase' : ''}`}>{label}</span>
+      <span className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+        <span
+          className="block h-full rounded-full transition-[width] duration-500"
+          style={{ width: `${pct}%`, background: ink }}
+        />
+      </span>
+      <span className="mono text-right text-[12px] text-ink-3">
+        {count}
+        <span className="ml-1 text-ink-3/70">{pct}%</span>
+      </span>
+    </li>
+  );
+}
 
 export default function AnalyticsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -21,6 +85,7 @@ export default function AnalyticsPage() {
     const total = incidents.length;
     const resolved = incidents.filter(i => i.status === 'RESOLVED').length;
     const active = total - resolved;
+    const critical = incidents.filter(i => i.urgency === 'CRITICAL').length;
     const high = incidents.filter(i => i.urgency === 'HIGH').length;
     const medium = incidents.filter(i => i.urgency === 'MEDIUM').length;
     const low = incidents.filter(i => i.urgency === 'LOW').length;
@@ -53,110 +118,174 @@ export default function AnalyticsPage() {
       }).length;
     });
 
-    return { total, resolved, active, high, medium, low, types, statuses, avgResponseTime, hourly };
+    return { total, resolved, active, critical, high, medium, low, types, statuses, avgResponseTime, hourly };
   }, [incidents]);
+
+  const peak = Math.max(1, ...stats.hourly);
+  const typeRows = Object.entries(stats.types).sort((a, b) => b[1] - a[1]);
+  const statusRows = Object.entries(stats.statuses).sort((a, b) => b[1] - a[1]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-neutral-700 border-t-white rounded-full animate-spin" />
+      <div className="flex min-h-[calc(100dvh_-_var(--banner-h,0px))] items-center justify-center bg-surface-0">
+        <div className="text-center" role="status" aria-label="Loading analytics">
+          <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-ink-1" />
+          <p className="data-label">Loading analytics</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
+    <div className="min-h-[calc(100dvh_-_var(--banner-h,0px))] bg-surface-0 text-ink-1">
       {/* Header */}
-      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4"
-        style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
-        <div className="flex items-center gap-3">
-          <Image src="/logo.jpg" alt="AgapAI" width={22} height={22} className="rounded-md" />
-          <span className="font-extrabold text-sm tracking-wider uppercase">Agap<span className="text-red-500">AI</span></span>
-          <span className="text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
-            ANALYTICS
+      <header className="chrome sticky top-0 z-40 flex h-14 items-center justify-between gap-3 px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Image src="/logo.jpg" alt="" width={22} height={22} className="rounded-md" />
+          <span className="text-sm font-extrabold uppercase tracking-[0.14em]">
+            Agap<span className="text-[var(--critical)]">AI</span>
           </span>
+          <span className="chip chip-neutral">Analytics</span>
         </div>
-        <a href="/dispatcher" className="text-[10px] text-neutral-500 hover:text-white transition-colors flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white/5">
-          <ArrowLeft size={10} /> Dispatcher
+        <a href="/dispatcher" className="btn btn-sm btn-quiet" aria-label="Back to dispatcher dashboard">
+          <ArrowLeft size={13} aria-hidden />
+          <span className="hidden sm:inline">Dispatcher</span>
         </a>
       </header>
 
-      <div className="p-6 max-w-5xl mx-auto">
-        <h1 className="text-xl font-bold mb-6">Incident Analytics</h1>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {[
-            { label: 'Total', value: stats.total, icon: Activity, color: '#fafafa' },
-            { label: 'Active', value: stats.active, icon: AlertTriangle, color: '#f97316' },
-            { label: 'Resolved', value: stats.resolved, icon: CheckCircle2, color: '#22c55e' },
-            { label: 'Avg Response', value: `${stats.avgResponseTime.toFixed(0)}m`, icon: Clock, color: '#60a5fa' },
-          ].map(m => (
-            <div key={m.label} className="rounded-xl p-4 border border-white/5" style={{ background: 'rgba(255,255,255,0.03)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">{m.label}</span>
-                <m.icon size={14} style={{ color: `${m.color}60` }} />
-              </div>
-              <p className="text-2xl font-black" style={{ color: m.color }}>{m.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Urgency Distribution */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            { label: 'HIGH', value: stats.high, color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
-            { label: 'MEDIUM', value: stats.medium, color: '#eab308', bg: 'rgba(234,179,8,0.08)' },
-            { label: 'LOW', value: stats.low, color: '#22c55e', bg: 'rgba(34,197,94,0.08)' },
-          ].map(u => (
-            <div key={u.label} className="rounded-xl p-4 border border-white/5" style={{ background: u.bg }}>
-              <span className="text-[9px] font-bold tracking-wider uppercase" style={{ color: `${u.color}99` }}>{u.label}</span>
-              <p className="text-xl font-black mt-1" style={{ color: u.color }}>{u.value}</p>
-              <div className="mt-2 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${stats.total > 0 ? (u.value / stats.total) * 100 : 0}%`, background: u.color }} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Type Distribution */}
-        <div className="rounded-xl border border-white/5 p-4 mb-6" style={{ background: 'rgba(255,255,255,0.03)' }}>
-          <h2 className="text-[11px] font-bold tracking-wider text-neutral-500 uppercase mb-3 flex items-center gap-2">
-            <BarChart3 size={12} /> Incidents by Type
-          </h2>
-          <div className="space-y-2">
-            {Object.entries(stats.types).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-              <div key={type} className="flex items-center gap-3">
-                <span className="text-[11px] text-neutral-300 w-24 truncate">{type.replace('_', ' ')}</span>
-                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(count / stats.total) * 100}%` }} />
-                </div>
-                <span className="text-[11px] font-mono text-neutral-400 w-8 text-right">{count}</span>
-              </div>
-            ))}
+      <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Incident analytics</h1>
+            <p className="data-label mt-1">Operations readout · rolling 24 hours</p>
           </div>
+          <span className="mono text-[11px] text-ink-3">
+            {stats.total} records
+          </span>
         </div>
 
-        {/* Status Distribution */}
-        <div className="rounded-xl border border-white/5 p-4" style={{ background: 'rgba(255,255,255,0.03)' }}>
-          <h2 className="text-[11px] font-bold tracking-wider text-neutral-500 uppercase mb-3 flex items-center gap-2">
-            <TrendingUp size={12} /> Incidents by Status
-          </h2>
-          <div className="grid grid-cols-4 gap-3">
-            {Object.entries(stats.statuses).map(([status, count]) => {
-              const colors: Record<string, string> = {
-                PENDING: '#fbbf24', DISPATCHED: '#60a5fa', EN_ROUTE: '#38bdf8',
-                ARRIVED: '#818cf8', RESOLVED: '#22c55e', REVIEWING: '#a78bfa', PRIORITIZED: '#f472b6',
-              };
+        {/* ── READOUT BAND ── */}
+        <section className="panel flex flex-wrap overflow-hidden" aria-label="Key metrics">
+          <Readout label="Total" value={stats.total} icon={Activity} />
+          <Readout label="Active" value={stats.active} ink="var(--warning)" icon={AlertTriangle} />
+          <Readout label="Resolved" value={stats.resolved} ink="var(--success)" icon={CheckCircle2} />
+          <Readout
+            label="Avg response"
+            value={`${stats.avgResponseTime.toFixed(0)}m`}
+            ink="var(--info)"
+            icon={Clock}
+          />
+        </section>
+
+        {/* ── 24H HOURLY HISTOGRAM ── */}
+        <section className="panel p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="data-label flex items-center gap-2">
+              <BarChart3 size={12} aria-hidden /> Incidents per hour
+            </h2>
+            <span className="mono text-[11px] text-ink-3">peak {peak}</span>
+          </div>
+
+          {/* Chart */}
+          <div
+            className="flex h-36 items-end gap-[3px]"
+            role="img"
+            aria-label={`Incidents per hour over the last 24 hours. Peak ${peak}.`}
+          >
+            {stats.hourly.map((count, h) => {
+              const hourLabel = new Date(Date.now() - (24 - h) * 3600000).getHours();
               return (
-                <div key={status} className="text-center p-2 rounded-lg bg-white/[0.02] border border-white/5">
-                  <p className="text-lg font-black" style={{ color: colors[status] || '#71717a' }}>{count}</p>
-                  <p className="text-[9px] text-neutral-500 font-mono uppercase">{status}</p>
+                <div key={h} className="group relative flex h-full flex-1 items-end">
+                  <div
+                    className="w-full rounded-sm transition-colors"
+                    style={{
+                      height: `${Math.max(count > 0 ? 6 : 2, (count / peak) * 100)}%`,
+                      background: count > 0 ? 'var(--info)' : 'rgba(255,255,255,0.08)',
+                    }}
+                    title={`${String(hourLabel).padStart(2, '0')}:00 — ${count} incident${count === 1 ? '' : 's'}`}
+                  />
                 </div>
               );
             })}
           </div>
+
+          {/* Axis */}
+          <div className="mono mt-2 flex justify-between border-t border-[var(--line-faint)] pt-2 text-[11px] text-ink-3">
+            <span>-24h</span>
+            <span>-18h</span>
+            <span>-12h</span>
+            <span>-6h</span>
+            <span>now</span>
+          </div>
+        </section>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {/* ── URGENCY ── */}
+          <section className="panel p-4 sm:p-5">
+            <h2 className="data-label mb-4 flex items-center gap-2">
+              <AlertTriangle size={12} aria-hidden /> By urgency
+            </h2>
+            <ul className="space-y-3">
+              {[
+                { label: 'Critical', value: stats.critical, ink: URGENCY_TONE.CRITICAL },
+                { label: 'High', value: stats.high, ink: URGENCY_TONE.HIGH },
+                { label: 'Medium', value: stats.medium, ink: URGENCY_TONE.MEDIUM },
+                { label: 'Low', value: stats.low, ink: URGENCY_TONE.LOW },
+              ].map(u => (
+                <BarRow key={u.label} label={u.label} count={u.value} total={stats.total} ink={u.ink} />
+              ))}
+            </ul>
+          </section>
+
+          {/* ── TYPE ── */}
+          <section className="panel p-4 sm:p-5">
+            <h2 className="data-label mb-4 flex items-center gap-2">
+              <TrendingUp size={12} aria-hidden /> By type
+            </h2>
+            {typeRows.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-ink-3">No incidents recorded</p>
+            ) : (
+              <ul className="space-y-3">
+                {typeRows.map(([type, count]) => (
+                  <BarRow
+                    key={type}
+                    label={type.replace('_', ' ')}
+                    count={count}
+                    total={stats.total}
+                    ink="var(--info)"
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
+
+        {/* ── STATUS ── */}
+        <section className="panel p-4 sm:p-5">
+          <h2 className="data-label mb-4">By status</h2>
+          {statusRows.length === 0 ? (
+            <p className="py-6 text-center text-[13px] text-ink-3">No incidents recorded</p>
+          ) : (
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {statusRows.map(([status, count]) => {
+                const tone = STATUS_TONE[status] || 'var(--text-3)';
+                return (
+                  <li key={status} className="well flex items-center justify-between gap-2 px-3 py-2.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="status-dot" style={{ background: tone }} aria-hidden />
+                      <span className="mono truncate text-[11px] uppercase tracking-wide text-ink-3">
+                        {status}
+                      </span>
+                    </span>
+                    <span className="mono text-[15px] font-bold" style={{ color: tone }}>
+                      {count}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );

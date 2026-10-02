@@ -72,14 +72,19 @@ function applySpiderifyJitter(
   });
 }
 
-// ── Urgency colors ──────────────────────────────────────────────────────────
+// ── Urgency colors — exactly the four design-system accents ────────────────
+// Same rule as every other surface: red = act, amber = wait, emerald = done.
+// CRITICAL and HIGH are both red; CRITICAL is told apart by its pulse.
 
 const URGENCY_COLORS: Record<string, string> = {
-  CRITICAL: '#b91c1c',
+  CRITICAL: '#ef4444',
   HIGH: '#ef4444',
-  MEDIUM: '#eab308',
-  LOW: '#22c55e',
+  MEDIUM: '#f59e0b',
+  LOW: '#10b981',
 };
+
+const ACCURACY_COLOR = (accuracy: number): string =>
+  accuracy >= 90 ? '#10b981' : accuracy >= 70 ? '#f59e0b' : '#ef4444';
 
 const TYPE_ICONS: Record<string, string> = {
   MEDICAL: '🏥',
@@ -88,6 +93,21 @@ const TYPE_ICONS: Record<string, string> = {
   VIOLENCE: '⚠️',
   NATURAL_DISASTER: '🌪️',
 };
+
+// Shared popup chrome: solid near-black card, hairline border, 12px radius.
+// No backdrop blur — legibility over the map matters more than glass.
+const POPUP_STYLE = [
+  'background:#0b0b0f',
+  'border:1px solid rgba(255,255,255,0.14)',
+  'border-radius:12px',
+  'box-shadow:0 12px 32px rgba(0,0,0,0.55)',
+  'color:#f4f4f5',
+  'max-width:300px',
+  'font-family:Inter,ui-sans-serif,system-ui,sans-serif',
+  'font-size:12px',
+  'line-height:1.45',
+  'overflow:hidden',
+].join(';');
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -134,7 +154,7 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       // Dark filter for OSM tiles — creates command-center aesthetic
       const canvas = mapContainer.current?.querySelector('canvas');
       if (canvas) {
-        canvas.style.filter = 'brightness(0.55) contrast(1.15) saturate(0.6)';
+        canvas.style.filter = 'brightness(0.5) contrast(1.15) saturate(0.55)';
       }
     });
 
@@ -196,11 +216,12 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     const spiderified = applySpiderifyJitter(incidents);
 
     spiderified.forEach((inc, idx) => {
-      const color = URGENCY_COLORS[inc.urgency] || '#71717a';
+      const color = URGENCY_COLORS[inc.urgency] || '#8e8e99';
       const isSelected = selectedIncident?.id === inc.id;
       const isCritical = inc.urgency === 'CRITICAL';
       const size = isSelected ? 36 : 28;
       const accuracy = inc.location?.confidenceScore ?? 85;
+      const accColor = ACCURACY_COLOR(accuracy);
 
       // ── Beacon pin element ──
       const el = document.createElement('div');
@@ -224,7 +245,8 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
         inset: 0;
         border-radius: 50%;
         border: 2px solid ${color};
-        opacity: ${isCritical ? '0.6' : '0.3'};
+        background: rgba(9, 9, 11, 0.55);
+        opacity: ${isCritical ? '0.75' : '0.4'};
         ${isCritical ? 'animation: pulse-ring 1.5s ease-in-out infinite;' : ''}
       `;
       el.appendChild(ring);
@@ -233,17 +255,17 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
       const circle = document.createElement('div');
       circle.style.cssText = `
         position: relative;
-        width: ${size * 0.6}px;
-        height: ${size * 0.6}px;
+        width: ${size * 0.62}px;
+        height: ${size * 0.62}px;
         border-radius: 50%;
         background: ${color};
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 0 ${isCritical ? '16px' : '8px'} ${color}60;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
         z-index: 1;
       `;
-      circle.style.fontSize = `${isSelected ? 14 : 11}px`;
+      circle.style.fontSize = `${isSelected ? 14 : 12}px`;
       circle.innerHTML = TYPE_ICONS[inc.type] || '📋';
       el.appendChild(circle);
 
@@ -265,7 +287,6 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
 
       // GPS accuracy indicator (small dot)
       const accDot = document.createElement('div');
-      const accColor = accuracy >= 90 ? '#22c55e' : accuracy >= 70 ? '#eab308' : '#ef4444';
       accDot.style.cssText = `
         position: absolute;
         bottom: -2px; left: 50%;
@@ -290,46 +311,36 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
         map.flyTo({ center: inc.displayCoords, zoom: 16, essential: true, duration: 800 });
       });
 
-      // ── Popup (glass morphism) ──
-      const urgColor = URGENCY_COLORS[inc.urgency] || '#71717a';
+      // ── Popup ──
+      const chipStyle = isCritical
+        ? 'background:#ef4444; color:#ffffff; border:1px solid #ef4444;'
+        : `background:${color}24; color:${color}; border:1px solid ${color}59;`;
       const popupHtml = `
-        <div style="
-          padding: 12px;
-          font-family: system-ui, -apple-system, sans-serif;
-          background: rgba(9,9,11,0.92);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(63,63,70,0.4);
-          border-radius: 12px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-          color: #fafafa;
-          max-width: 300px;
-          font-size: 12px;
-        ">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <span style="font-size: 18px;">${TYPE_ICONS[inc.type] || '📋'}</span>
-            <div style="flex: 1; min-width: 0;">
-              <div style="font-weight: 700; font-size: 13px; color: #fafafa;">${escapeHtml(inc.type.replace('_', ' '))}</div>
-              <div style="font-size: 10px; color: #94a3b8;">${escapeHtml(inc.location.landmarkText)}</div>
+        <div style="${POPUP_STYLE}">
+          <div style="display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.08);">
+            <span style="font-size:16px; line-height:1;">${TYPE_ICONS[inc.type] || '📋'}</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:13px; color:#f4f4f5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(inc.type.replace('_', ' '))}</div>
+              <div style="font-size:11px; color:#8e8e99; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(inc.location.landmarkText)}</div>
             </div>
             <span style="
-              font-size: 10px;
-              font-weight: 700;
-              padding: 2px 8px;
-              border-radius: 9999px;
-              background: ${urgColor}18;
-              color: ${urgColor};
-              border: 1px solid ${urgColor}30;
-              white-space: nowrap;
+              flex:none;
+              font-size:11px;
+              font-weight:700;
+              letter-spacing:0.07em;
+              padding:2px 8px;
+              border-radius:999px;
+              white-space:nowrap;
+              ${chipStyle}
             ">${escapeHtml(inc.urgency)}</span>
           </div>
-          <p style="color: #d4d4d8; margin: 0; font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+          <p style="margin:0; padding:10px 12px 0; color:#c8c8d1; font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
             ${escapeHtml(inc.condition)}
           </p>
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(63,63,70,0.3);">
-            <span style="font-size: 10px; color: #94a3b8;">👥 ${inc.peopleCount}</span>
-            <span style="font-size: 10px; color: #94a3b8; font-family: monospace;">${inc.location.coordinates[1].toFixed(5)}, ${inc.location.coordinates[0].toFixed(5)}</span>
-            <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: ${accColor}15; color: ${accColor}; border: 1px solid ${accColor}30; margin-left: auto;">GPS ${accuracy}%</span>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; margin-top:8px; border-top:1px solid rgba(255,255,255,0.08);">
+            <span style="font-size:11px; color:#8e8e99;">👥 ${inc.peopleCount}</span>
+            <span style="font-size:11px; color:#8e8e99; font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums;">${inc.location.coordinates[1].toFixed(5)}, ${inc.location.coordinates[0].toFixed(5)}</span>
+            <span style="font-size:11px; font-weight:700; letter-spacing:0.05em; margin-left:auto; color:${accColor};">GPS ${accuracy}%</span>
           </div>
         </div>
       `;
@@ -343,28 +354,25 @@ export const DispatcherMap: React.FC<DispatcherMapProps> = ({
     });
   }, [incidents, selectedIncident]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: '#09090b' }}>
-      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+  const criticalCount = incidents.filter((i) => i.urgency === 'CRITICAL').length;
 
-      {/* Floating status indicator */}
-      <div style={{
-        position: 'absolute', top: '12px', left: '12px',
-        background: 'rgba(9,9,11,0.8)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        padding: '10px 14px',
-        borderRadius: '10px',
-        border: '1px solid rgba(63,63,70,0.3)',
-        zIndex: 10,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-      }}>
-        <p style={{ fontSize: '9px', color: '#71717a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
-          INCIDENTS
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-surface-0">
+      <div ref={mapContainer} className="h-full w-full" />
+
+      {/* Floating tally — bottom-left, clear of the filter bar (top-left)
+          and the attribution cluster (bottom-right). */}
+      <div className="pointer-events-none absolute bottom-12 left-3 z-10 rounded-xl border border-white/15 bg-surface-1/90 px-3 py-2 shadow-[0_6px_24px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+        <p className="data-label data-label-tight m-0">Incidents</p>
+        <p className="readout mt-0.5 text-lg leading-none">
+          {String(incidents.length).padStart(2, '0')}
         </p>
-        <p style={{ fontSize: '14px', color: '#fafafa', fontWeight: 800, margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
-          {incidents.length}
-        </p>
+        {criticalCount > 0 && (
+          <p className="mono mt-1.5 flex items-center gap-1.5 border-t border-white/10 pt-1.5 text-[11px] font-semibold text-critical">
+            <span className="status-dot status-dot-off live-dot" aria-hidden="true" />
+            {criticalCount} CRITICAL
+          </p>
+        )}
       </div>
     </div>
   );

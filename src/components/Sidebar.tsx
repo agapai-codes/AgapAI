@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   LayoutDashboard, Map, ListOrdered, BarChart3,
   Settings, ChevronLeft, ChevronRight, LogOut, Shield, Siren,
@@ -25,6 +25,65 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+/** One nav row, used by the desktop rail, the mobile sheet, and the drawer. */
+function NavButton({
+  item,
+  isActive,
+  collapsed,
+  onClick,
+}: {
+  item: (typeof NAV_ITEMS)[number];
+  isActive: boolean;
+  collapsed?: boolean;
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={isActive ? 'page' : undefined}
+      title={collapsed ? item.label : undefined}
+      className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+        collapsed ? 'justify-center px-0' : ''
+      } ${
+        isActive
+          ? 'bg-white/[0.07] text-ink-1'
+          : 'text-ink-3 hover:bg-white/[0.04] hover:text-ink-1'
+      }`}
+    >
+      {/* Active rail — the one bit of accent in the chrome */}
+      <span
+        aria-hidden
+        className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full transition-colors ${
+          isActive ? 'bg-[var(--critical)]' : 'bg-transparent'
+        }`}
+      />
+      <Icon size={17} className={isActive ? 'text-ink-1' : 'text-ink-3 group-hover:text-ink-2'} />
+      {!collapsed && (
+        <span className="text-[13px] font-medium tracking-tight">{item.label}</span>
+      )}
+      {isActive && !collapsed && (
+        <span className="status-dot status-dot-ok ml-auto" aria-hidden />
+      )}
+    </button>
+  );
+}
+
+function UserCard({ user }: { user: NonNullable<SidebarProps['user']> }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg bg-white/[0.05] px-3 py-2">
+      <Shield size={14} className="text-ink-3" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium leading-tight text-ink-2">
+          {user.name || 'User'}
+        </p>
+        <p className="data-label data-label-tight mt-0.5 truncate">{user.role}</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Desktop Sidebar ───────────────────────────────────────────────────────
 
 export const DesktopSidebar: React.FC<SidebarProps> = ({
@@ -37,77 +96,61 @@ export const DesktopSidebar: React.FC<SidebarProps> = ({
 }) => {
   return (
     <aside
-      className={`hidden md:flex h-full flex-col border-r border-white/5 transition-all duration-200 shrink-0 ${
-        collapsed ? 'w-[60px]' : 'w-[200px]'
+      className={`hidden h-full shrink-0 flex-col border-r border-[var(--line)] bg-surface-1 transition-all duration-200 md:flex ${
+        collapsed ? 'w-[64px]' : 'w-[208px]'
       }`}
-      style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}
     >
       {/* Logo */}
-      <div className="h-12 flex items-center px-3 border-b border-white/5 shrink-0">
+      <div className="flex h-14 shrink-0 items-center border-b border-[var(--line)] px-3">
         {!collapsed && (
-          <span className="font-extrabold text-sm tracking-wider uppercase text-white flex-1">
-            Agap<span className="text-red-500">AI</span>
+          <span className="flex-1 text-sm font-extrabold uppercase tracking-[0.14em]">
+            Agap<span className="text-[var(--critical)]">AI</span>
           </span>
         )}
         {onToggleCollapse && (
           <button
+            type="button"
             onClick={onToggleCollapse}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-500 hover:text-white hover:bg-white/5 transition-all"
+            className="btn btn-icon btn-ghost"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </button>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map((item) => {
-          const isActive = activeRoute === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
-                isActive
-                  ? 'bg-white/10 text-white'
-                  : 'text-neutral-500 hover:text-white hover:bg-white/5'
-              } ${collapsed ? 'justify-center px-0' : ''}`}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon size={18} className={isActive ? 'text-white' : 'text-neutral-500'} />
-              {!collapsed && (
-                <span className="text-[12px] font-medium">{item.label}</span>
-              )}
-              {isActive && !collapsed && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />
-              )}
-            </button>
-          );
-        })}
+      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3" aria-label="Main">
+        {NAV_ITEMS.map((item) => (
+          <NavButton
+            key={item.id}
+            item={item}
+            isActive={activeRoute === item.id}
+            collapsed={collapsed}
+            onClick={() => onNavigate(item.id)}
+          />
+        ))}
       </nav>
 
       {/* User section */}
-      <div className="px-2 py-3 border-t border-white/5 shrink-0">
+      <div className="shrink-0 border-t border-[var(--line)] px-2 py-3">
         {user && !collapsed && (
-          <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-white/5">
-            <Shield size={14} className="text-neutral-500" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-medium text-neutral-300 truncate">{user.name || 'User'}</p>
-              <p className="text-[9px] text-neutral-600 uppercase">{user.role}</p>
-            </div>
+          <div className="mb-2">
+            <UserCard user={user} />
           </div>
         )}
         {onSignOut && (
           <button
+            type="button"
             onClick={onSignOut}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all ${
+            className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-ink-3 transition-colors hover:bg-[color-mix(in_srgb,var(--critical)_12%,transparent)] hover:text-[var(--critical)] ${
               collapsed ? 'justify-center px-0' : ''
             }`}
             title={collapsed ? 'Sign Out' : undefined}
+            aria-label={collapsed ? 'Sign Out' : undefined}
           >
             <LogOut size={16} />
-            {!collapsed && <span className="text-[11px]">Sign Out</span>}
+            {!collapsed && <span className="text-[13px] font-medium">Sign Out</span>}
           </button>
         )}
       </div>
@@ -124,23 +167,33 @@ export const MobileBottomNav: React.FC<{
   const mobileItems = NAV_ITEMS.slice(0, 5); // Show 5 items max on mobile
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-white/5"
-      style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
-      <div className="flex items-center justify-around h-14">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--line)] bg-surface-1/95 backdrop-blur md:hidden"
+      aria-label="Main"
+    >
+      <div className="flex h-16 items-stretch">
         {mobileItems.map((item) => {
           const isActive = activeRoute === item.id;
+          const Icon = item.icon;
           return (
             <button
               key={item.id}
+              type="button"
               onClick={() => onNavigate(item.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all ${
-                isActive ? 'text-white' : 'text-neutral-500'
+              aria-current={isActive ? 'page' : undefined}
+              className={`relative flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${
+                isActive ? 'text-ink-1' : 'text-ink-3'
               }`}
             >
-              <item.icon size={18} />
-              <span className="text-[9px] font-medium">{item.label}</span>
+              <Icon size={18} />
+              <span className="text-[11px] font-medium leading-none tracking-tight">
+                {item.label}
+              </span>
               {isActive && (
-                <div className="absolute bottom-1 w-4 h-0.5 rounded-full bg-white" />
+                <span
+                  aria-hidden
+                  className="absolute top-0 h-0.5 w-6 rounded-full bg-[var(--critical)]"
+                />
               )}
             </button>
           );
@@ -158,15 +211,19 @@ export const MobileHeader: React.FC<{
   actions?: React.ReactNode;
 }> = ({ title, onMenuToggle, actions }) => {
   return (
-    <header className="md:hidden h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4 shrink-0"
-      style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
+    <header className="chrome flex h-14 min-h-14 shrink-0 items-center justify-between px-3 md:hidden">
       <div className="flex items-center gap-2">
         {onMenuToggle && (
-          <button onClick={onMenuToggle} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-            <Menu size={18} className="text-neutral-400" />
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            className="btn btn-icon btn-ghost"
+            aria-label="Open menu"
+          >
+            <Menu size={18} />
           </button>
         )}
-        <span className="text-sm font-bold text-white">{title}</span>
+        <h1 className="text-sm font-bold tracking-tight">{title}</h1>
       </div>
       {actions}
     </header>
@@ -195,65 +252,49 @@ export const MobileSlideMenu: React.FC<{
   if (!open) return null;
 
   return (
-    <div className="md:hidden fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
 
       {/* Menu panel */}
-      <div className="absolute left-0 top-0 bottom-0 w-72 flex flex-col"
-        style={{ background: 'rgba(9,9,11,0.98)', backdropFilter: 'blur(20px)' }}>
+      <div className="absolute bottom-0 left-0 top-0 flex w-72 flex-col border-r border-[var(--line)] bg-surface-1 animate-slide-in-right">
         {/* Header */}
-        <div className="h-14 flex items-center justify-between px-4 border-b border-white/5">
-          <span className="font-extrabold text-sm tracking-wider uppercase text-white">
-            Agap<span className="text-red-500">AI</span>
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--line)] px-4">
+          <span className="text-sm font-extrabold uppercase tracking-[0.14em]">
+            Agap<span className="text-[var(--critical)]">AI</span>
           </span>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
-            <X size={18} className="text-neutral-400" />
+          <button type="button" onClick={onClose} className="btn btn-icon btn-ghost" aria-label="Close menu">
+            <X size={18} />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
-            const isActive = activeRoute === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => { onNavigate(item.id); onClose(); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
-                  isActive
-                    ? 'bg-white/10 text-white'
-                    : 'text-neutral-500 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <item.icon size={18} className={isActive ? 'text-white' : 'text-neutral-500'} />
-                <span className="text-[12px] font-medium">{item.label}</span>
-                {isActive && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />
-                )}
-              </button>
-            );
-          })}
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3" aria-label="Main">
+          {NAV_ITEMS.map((item) => (
+            <NavButton
+              key={item.id}
+              item={item}
+              isActive={activeRoute === item.id}
+              onClick={() => { onNavigate(item.id); onClose(); }}
+            />
+          ))}
         </nav>
 
         {/* User section */}
-        <div className="px-3 py-3 border-t border-white/5">
+        <div className="shrink-0 border-t border-[var(--line)] px-3 py-3">
           {user && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-white/5">
-              <Shield size={14} className="text-neutral-500" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-medium text-neutral-300 truncate">{user.name || 'User'}</p>
-                <p className="text-[9px] text-neutral-600 uppercase">{user.role}</p>
-              </div>
+            <div className="mb-2">
+              <UserCard user={user} />
             </div>
           )}
           {onSignOut && (
             <button
+              type="button"
               onClick={() => { onSignOut(); onClose(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-ink-3 transition-colors hover:bg-[color-mix(in_srgb,var(--critical)_12%,transparent)] hover:text-[var(--critical)]"
             >
               <LogOut size={16} />
-              <span className="text-[11px]">Sign Out</span>
+              <span className="text-[13px] font-medium">Sign Out</span>
             </button>
           )}
         </div>

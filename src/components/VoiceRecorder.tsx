@@ -222,9 +222,11 @@ export default function VoiceRecorder({
 
   if (!isSupported) {
     return (
-      <div className="max-w-2xl mx-auto p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-        <p className="text-red-400 font-bold text-sm font-mono">SPEECH RECOGNITION UNAVAILABLE</p>
-        <p className="text-zinc-400 text-xs mt-1">Use Google Chrome on desktop or Android.</p>
+      <div className="well mb-4 border-[rgba(239,68,68,0.35)] p-4" role="alert">
+        <p className="mono text-[13px] font-bold uppercase tracking-wide text-[var(--critical)]">
+          Speech recognition unavailable
+        </p>
+        <p className="mt-1 text-[13px] text-ink-2">Use Google Chrome on desktop or Android.</p>
       </div>
     );
   }
@@ -232,39 +234,43 @@ export default function VoiceRecorder({
   if (!isRecording && !error) return null;
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="w-full">
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <p className="text-red-400 text-sm font-mono">{error}</p>
+        <div className="well mb-4 border-[rgba(239,68,68,0.35)] p-3" role="alert">
+          <p className="mono text-[13px] text-[var(--critical)]">{error}</p>
         </div>
       )}
 
       {isRecording && (
-        <div className="bg-zinc-900/60 border border-zinc-800/50 p-4 rounded-lg">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="well mb-4 p-4" role="status" aria-label="Recording status">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
-              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">STATUS</p>
+              <p className="data-label mb-1.5">Status</p>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-red-400 text-sm font-bold font-mono">RECORDING</span>
+                <span className="status-dot status-dot-off live-dot" aria-hidden />
+                <span className="mono text-[13px] font-bold text-[var(--critical)]">RECORDING</span>
               </div>
             </div>
             <div>
-              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">DURATION</p>
-              <p className="text-zinc-100 text-sm font-mono">{formatDuration(duration)}</p>
+              <p className="data-label mb-1.5">Duration</p>
+              <p className="mono text-[13px] text-ink-1">{formatDuration(duration)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">
-                AUDIO LEVEL {isDemo && <span className="text-zinc-600">(simulated)</span>}
+              <p className="data-label mb-1.5">
+                Audio level{isDemo && <span className="ml-1 normal-case">(simulated)</span>}
               </p>
-              <div className="flex gap-0.5 h-4 items-end">
+              <div className="flex h-4 items-end gap-0.5" aria-hidden>
                 {Array.from({ length: 20 }).map((_, i) => (
                   <div
                     key={i}
                     className={`w-1.5 transition-all duration-100 ${
                       i < audioLevel / 5
-                        ? i < 12 ? 'bg-emerald-500' : i < 16 ? 'bg-amber-500' : 'bg-red-500'
-                        : 'bg-zinc-800'
+                        ? i < 12
+                          ? 'bg-[var(--success)]'
+                          : i < 16
+                            ? 'bg-[var(--warning)]'
+                            : 'bg-[var(--critical)]'
+                        : 'bg-white/10'
                     }`}
                     style={{ height: `${Math.max(20, (i + 1) * 5)}%` }}
                   />
@@ -272,18 +278,14 @@ export default function VoiceRecorder({
               </div>
             </div>
             <div>
-              <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-1">LANGUAGE</p>
-              <p className="text-zinc-400 text-sm font-mono">{language}</p>
+              <p className="data-label mb-1.5">Language</p>
+              <p className="mono text-[13px] text-ink-2">{language}</p>
             </div>
           </div>
           {/* Mode indicator */}
-          <div className="mt-3 pt-3 border-t border-zinc-800/50">
-            <span className={`text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded border font-mono ${
-              isLive 
-                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' 
-                : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-            }`}>
-              {isLive ? 'LIVE MODE — Server STT Ready' : 'DEMO MODE — Browser STT'}
+          <div className="mt-3 border-t border-[var(--line)] pt-3">
+            <span className={`chip ${isLive ? 'chip-success' : 'chip-warning'}`}>
+              {isLive ? 'Live mode — server STT ready' : 'Demo mode — browser STT'}
             </span>
           </div>
         </div>

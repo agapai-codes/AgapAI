@@ -1,7 +1,6 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 
 interface TranscriptViewProps {
   transcript: string;
@@ -12,60 +11,67 @@ interface TranscriptViewProps {
 export default function TranscriptView({ transcript, interimTranscript, isProcessing }: TranscriptViewProps) {
   if (!transcript && !interimTranscript) return null;
 
+  const sentenceCount = transcript.split('. ').filter(Boolean).length;
+  const wordCount = transcript.split(' ').filter(Boolean).length;
+
   return (
-    <div className="w-full max-w-2xl mx-auto mt-6 animate-fade-in">
-      <Card className="bg-[#0F1520] border-[#1E3A5F] rounded-none">
+    <div className="mx-auto mt-6 w-full max-w-2xl animate-fade-in">
+      <Card className="panel overflow-hidden">
         <CardContent className="p-0">
           {/* Header */}
-          <div className="px-4 py-2 border-b border-[#1E3A5F] flex items-center justify-between">
-            <span className="data-label">TRANSCRIPT LOG</span>
-            <div className="flex items-center gap-3">
-              {isProcessing && (
-                <span className="text-[10px] mono text-[#F59E0B] px-2 py-0.5 bg-[#F59E0B]/10 border border-[#F59E0B]/30">
-                  PROCESSING
-                </span>
-              )}
-              {!isProcessing && (
-                <span className="text-[10px] mono text-[#10B981] px-2 py-0.5 bg-[#10B981]/10 border border-[#10B981]/30">
-                  COMPLETE
-                </span>
-              )}
-            </div>
+          <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2.5">
+            <span className="data-label">Transcript Log</span>
+            <span className={`chip ${isProcessing ? 'chip-warning' : 'chip-success'}`}>
+              <span className={`status-dot ${isProcessing ? 'status-dot-warn' : 'status-dot-ok'}`} aria-hidden />
+              {isProcessing ? 'Processing' : 'Complete'}
+            </span>
           </div>
 
           {/* Content */}
-          <div className="p-4 min-h-[80px] bg-[#080C14]">
-            <div className="font-mono text-sm leading-relaxed">
-              {transcript.split('. ').map((sentence, i) => (
-                sentence && (
-                  <div key={i} className="flex gap-2 mb-1">
-                    <span className="text-[#3B82F6] select-none">&gt;</span>
-                    <span className="text-[#F9FAFB]">{sentence}{i < transcript.split('. ').length - 1 ? '.' : ''}</span>
+          <div className="min-h-[80px] bg-[var(--surface-inset)] p-4">
+            <div className="mono text-[13px] leading-relaxed">
+              {transcript.split('. ').map((sentence, i) =>
+                sentence ? (
+                  <div key={i} className="mb-1 flex gap-2">
+                    <span className="select-none text-[var(--info)]" aria-hidden>&gt;</span>
+                    <span className="text-ink-1">{sentence}{i < sentenceCount - 1 ? '.' : ''}</span>
                   </div>
-                )
-              ))}
+                ) : null
+              )}
               {interimTranscript.replace(transcript, '') && (
                 <div className="flex gap-2">
-                  <span className="text-[#3B82F6] select-none">&gt;</span>
-                  <span className="text-[#6B7280] italic">{interimTranscript.replace(transcript, '')}</span>
+                  <span className="select-none text-[var(--info)]" aria-hidden>&gt;</span>
+                  <span className="italic text-ink-3">{interimTranscript.replace(transcript, '')}</span>
                 </div>
               )}
               {isProcessing && (
-                <div className="flex gap-2">
-                  <span className="text-[#3B82F6] select-none">&gt;</span>
-                  <span className="text-[#F59E0B] animate-pulse">|</span>
+                <div className="flex gap-2" aria-hidden>
+                  <span className="select-none text-[var(--info)]">&gt;</span>
+                  <span className="animate-pulse text-[var(--warning)]">|</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2 border-t border-[#1E3A5F] flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="data-label">WORDS: <span className="text-[#F9FAFB]">{transcript.split(' ').filter(w => w).length}</span></span>
-              <span className="data-label">CHARS: <span className="text-[#F9FAFB]">{transcript.length}</span></span>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-4 py-2.5">
+            <div className="flex gap-4">
+              <span className="data-label data-label-tight">
+                Words <span className="mono ml-1 text-ink-1">{wordCount}</span>
+              </span>
+              <span className="data-label data-label-tight">
+                Chars <span className="mono ml-1 text-ink-1">{transcript.length}</span>
+              </span>
             </div>
-            <span className="data-label">STATUS: <span className={isProcessing ? 'text-[#F59E0B]' : 'text-[#10B981]'}>{isProcessing ? 'ACTIVE' : 'COMPLETE'}</span></span>
+            <span className="data-label data-label-tight">
+              Status{' '}
+              <span
+                className="mono ml-1"
+                style={{ color: isProcessing ? 'var(--warning)' : 'var(--success)' }}
+              >
+                {isProcessing ? 'ACTIVE' : 'COMPLETE'}
+              </span>
+            </span>
           </div>
         </CardContent>
       </Card>

@@ -6,42 +6,653 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════
+   AGAPAI DESIGN SYSTEM
+   ---------------------------------------------------------------------------
+   Three surfaces, one border language, one radius system, one type scale.
+
+   SURFACE   surface-0 (page) → surface-1 (chrome) → surface-2 (panel)
+             → surface-3 (inset well). Near-black, never pure black.
+   BORDER    hairline / default / strong — white at low opacity, 1px only.
+   TEXT      1 primary, 2 body, 3 labels. Smallest size is 11px (text-2xs).
+   ACCENT    critical (red) · warning (amber) · success (emerald) · info (sky).
+   RADIUS    --radius = 8px drives everything: controls 8, cards 12, pills full.
+   MOTION    Only SOS/sonar pulses earn their keep. Everything else is still,
+             and everything yields under prefers-reduced-motion.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  /* ── shadcn token bridge ─────────────────────────────────────────────
+     The shadcn primitives (Button, Badge, Card, Alert, …) read these.
+     Pointing them at our own vars keeps one source of truth. */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* ── operational accents, usable as `text-critical` / `bg-info` / … ── */
+  --color-critical: var(--critical);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink-1: var(--text-1);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+
+  /* ── radius system: every value derives from --radius (8px) ── */
+  --radius-sm: calc(var(--radius) - 2px);   /* 6px  · chips, small marks   */
+  --radius-md: calc(var(--radius) - 2px);   /* 6px  · inline controls      */
+  --radius-lg: var(--radius);               /* 8px  · buttons, inputs      */
+  --radius-xl: calc(var(--radius) + 4px);   /* 12px · cards, panels        */
+  --radius-2xl: calc(var(--radius) + 8px);  /* 16px · modals, dialogs      */
+
+  /* ── type scale: 11 / 12 / 14 / 16 / 18 / 20 / 24 / 30 / 36 ── */
+  --text-2xs: 0.6875rem; /* 11px — absolute floor for any label */
+  --text-2xs--line-height: 1rem;
+}
+
 :root {
-  --background: oklch(0.07 0.005 260);
-  --foreground: oklch(0.98 0.002 240);
-  --card: oklch(0.13 0.008 260);
-  --card-foreground: oklch(0.98 0.002 240);
-  --popover: oklch(0.13 0.008 260);
-  --popover-foreground: oklch(0.98 0.002 240);
-  --primary: oklch(0.98 0.002 240);
-  --primary-foreground: oklch(0.13 0.008 260);
-  --secondary: oklch(0.18 0.008 260);
-  --secondary-foreground: oklch(0.90 0.005 240);
-  --muted: oklch(0.18 0.008 260);
-  --muted-foreground: oklch(0.55 0.01 240);
-  --accent: oklch(0.18 0.008 260);
-  --accent-foreground: oklch(0.98 0.002 240);
-  --destructive: oklch(0.60 0.22 25);
-  --destructive-foreground: oklch(0.98 0.002 240);
-  --border: oklch(0.22 0.008 260);
-  --input: oklch(0.18 0.008 260);
-  --ring: oklch(0.55 0.01 240);
-  --radius: 0.5rem;
+  color-scheme: dark;
+
+  /* ── surfaces ─────────────────────────────────────────────────────── */
+  --surface-0: #09090b; /* page                        */
+  --surface-1: #0b0b0f; /* chrome: header, sidebar     */
+  --surface-2: #111115; /* panels, cards               */
+  --surface-3: #17171c; /* inputs, inset wells         */
+  --surface-inset: #0c0c10;
+
+  /* ── borders (1px, white at low opacity) ──────────────────────────── */
+  --line-faint: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+
+  /* ── text ─────────────────────────────────────────────────────────── */
+  --text-1: #f4f4f5; /* 16.7:1 · headings, key values */
+  --text-2: #c8c8d1; /* 12.2:1 · body                 */
+  --text-3: #8e8e99; /*  6.1:1 · labels, metadata     */
+
+  /* ── accents ──────────────────────────────────────────────────────── */
+  --critical: #ef4444; /* 5.3:1  · alert, urgent        */
+  --critical-deep: #b91c1c;
+  --warning: #f59e0b; /* 9.3:1  · warning, queued      */
+  --success: #10b981; /* 7.9:1  · ok, resolved         */
+  --info: #38bdf8; /* 9.3:1  · operational, focus   */
+
+  /* ── shadcn primitives ────────────────────────────────────────────── */
+  --background: var(--surface-0);
+  --foreground: var(--text-1);
+  --card: var(--surface-2);
+  --card-foreground: var(--text-1);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--text-1);
+  --primary: var(--text-1);
+  --primary-foreground: var(--surface-0);
+  --secondary: var(--surface-3);
+  --secondary-foreground: var(--text-2);
+  --muted: var(--surface-3);
+  --muted-foreground: var(--text-3);
+  --accent: var(--surface-3);
+  --accent-foreground: var(--text-1);
+  --destructive: var(--critical);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--info);
+  --radius: 8px;
 }
 
-* {
-  border-color: oklch(0.22 0.008 260);
+/* ═══ Base ═══════════════════════════════════════════════════════════ */
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--surface-0);
+    color: var(--text-1);
+    font-family: 'Inter', var(--font-sans, ui-sans-serif), system-ui,
+      -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Focus is a first-class affordance: one ring, always visible. */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--info) 35%, transparent);
+    color: var(--text-1);
+  }
 }
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #09090b;
-  color: #fafafa;
-  -webkit-font-smoothing: antialiased;
-  font-variant-numeric: tabular-nums;
+/* ═══ Component layer ═════════════════════════════════════════════════
+   Declared in the components cascade layer so any Tailwind utility placed
+   alongside these classes still wins. Keep each class self-contained: no
+   class here should need to be fought with `!important`. */
+
+@layer components {
+  /* ── typography helpers ────────────────────────────────────────────── */
+
+  .mono {
+    font-family: 'JetBrains Mono', var(--font-mono, ui-monospace),
+      SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /** The one micro-label. 11px, tracked, uppercase — never smaller. */
+  .data-label {
+    font-size: 11px;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .data-label-tight {
+    letter-spacing: 0.06em;
+  }
+
+  /* Large numeric readout used across ops dashboards. */
+  .readout {
+    font-family: 'JetBrains Mono', var(--font-mono, ui-monospace),
+      SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-1);
+  }
+
+  /* ── surfaces ──────────────────────────────────────────────────────── */
+
+  .panel {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+  }
+
+  .well {
+    background: var(--surface-inset);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--radius-lg);
+  }
+
+  .chrome {
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* ── buttons ───────────────────────────────────────────────────────── */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease,
+      color 0.15s ease, opacity 0.15s ease;
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /** Compact toolbar control: 32px tall, tracked uppercase 11px. */
+  .btn-sm {
+    min-height: 2rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    border-radius: var(--radius-md);
+  }
+
+  .btn-icon {
+    min-height: 2rem;
+    min-width: 2rem;
+    padding: 0.25rem;
+    border-radius: var(--radius-md);
+  }
+
+  .btn-primary {
+    background: var(--text-1);
+    color: var(--surface-0);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #ffffff;
+  }
+
+  .btn-danger {
+    background: var(--critical);
+    color: #ffffff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #f87171;
+  }
+
+  .btn-success {
+    background: var(--success);
+    color: var(--surface-0);
+  }
+  .btn-success:hover:not(:disabled) {
+    background: #34d399;
+  }
+
+  .btn-info {
+    background: var(--info);
+    color: var(--surface-0);
+  }
+  .btn-info:hover:not(:disabled) {
+    background: #7dd3fc;
+  }
+
+  .btn-warning {
+    background: var(--warning);
+    color: var(--surface-0);
+  }
+  .btn-warning:hover:not(:disabled) {
+    background: #fbbf24;
+  }
+
+  .btn-outline {
+    background: transparent;
+    border-color: var(--line-strong);
+    color: var(--text-2);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-1);
+  }
+
+  .btn-quiet {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--line);
+    color: var(--text-2);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-1);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-3);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-1);
+  }
+
+  /* ── chips & badges ────────────────────────────────────────────────── */
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.125rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .chip-critical {
+    background: color-mix(in srgb, var(--critical) 14%, transparent);
+    border-color: color-mix(in srgb, var(--critical) 35%, transparent);
+    color: var(--critical);
+  }
+  .chip-warning {
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+    color: var(--warning);
+  }
+  .chip-success {
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    border-color: color-mix(in srgb, var(--success) 35%, transparent);
+    color: var(--success);
+  }
+  .chip-info {
+    background: color-mix(in srgb, var(--info) 14%, transparent);
+    border-color: color-mix(in srgb, var(--info) 35%, transparent);
+    color: var(--info);
+  }
+  .chip-neutral {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--line);
+    color: var(--text-3);
+  }
+
+  /* ── form fields ───────────────────────────────────────────────────── */
+
+  .field {
+    width: 100%;
+    background: var(--surface-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--text-1);
+    transition: border-color 0.15s ease;
+  }
+
+  .field::placeholder {
+    color: var(--text-3);
+  }
+
+  .field:hover:not(:disabled) {
+    border-color: var(--line-strong);
+  }
+
+  .field:disabled {
+    opacity: 0.5;
+  }
+
+  select.field {
+    appearance: none;
+    padding-right: 1.75rem;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+      linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+    background-position: calc(100% - 1rem) 55%, calc(100% - 0.7rem) 55%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  /* ── status dot ────────────────────────────────────────────────────── */
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    flex: none;
+  }
+
+  .status-dot-ok {
+    background: var(--success);
+  }
+  .status-dot-off {
+    background: var(--critical);
+  }
+  .status-dot-warn {
+    background: var(--warning);
+  }
+
+  /* ── dispatcher 3-pane grid ──────────────────────────────────────────
+     Mobile: queue strip over map. Desktop: queue · map · (detail).
+     The detail pane is fixed on small screens, in-flow from lg up. */
+
+  .dispatch-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .detail-pane {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    overflow: hidden;
+    background: var(--surface-0);
+  }
+
+  @media (min-width: 1024px) {
+    .dispatch-grid {
+      grid-template-rows: minmax(0, 1fr);
+      grid-template-columns: 320px minmax(0, 1fr);
+    }
+
+    .dispatch-grid.has-detail {
+      grid-template-columns: 320px minmax(0, 1fr) 400px;
+    }
+
+    .detail-pane {
+      position: static;
+      z-index: auto;
+      border-left: 1px solid var(--line);
+    }
+  }
+
+  /* Queue: horizontal rail on small screens, vertical list from lg up. */
+  .queue-rail {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  @media (min-width: 1024px) {
+    .queue-rail {
+      display: block;
+      padding: 0.5rem;
+      overflow-x: visible;
+      overflow-y: auto;
+    }
+
+    .queue-rail > * + * {
+      margin-top: 0.5rem;
+    }
+  }
+
+  /* Solid variant — reserved for the top urgency tier. */
+  .chip-critical-solid {
+    background: var(--critical);
+    border-color: var(--critical);
+    color: #ffffff;
+  }
+
+  .queue-item {
+    flex: none;
+    width: 240px;
+  }
+
+  @media (min-width: 1024px) {
+    .queue-item {
+      width: 100%;
+    }
+  }
+
+  /* ── motion ──────────────────────────────────────────────────────────
+     Only the emergency signals animate. Everything else is instant. */
+
+  .sonar-ring {
+    animation: sonar-ping 3s ease-out infinite;
+    animation-delay: 0s;
+  }
+
+  .sonar-ring-delayed {
+    animation: sonar-ping 3s ease-out infinite;
+    animation-delay: 1s;
+  }
+
+  /* Breathing halo, not a scaling button: keeps hover/active transforms free. */
+  .sos-pulse {
+    box-shadow: 0 10px 40px rgba(239, 68, 68, 0.32),
+      0 0 0 1px rgba(239, 68, 68, 0.35) inset;
+    animation: sos-pulse 1.8s ease-in-out infinite;
+  }
+
+  .critical-pulse {
+    animation: critical-pulse 1.5s ease-in-out infinite;
+  }
+
+  .live-dot {
+    animation: live-pulse 1.5s ease-in-out infinite;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.28s ease-out both;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
 }
 
-/* ── MapLibre Overrides ──────────────────────────────────────────────────── */
+/* ═══ Keyframes ══════════════════════════════════════════════════════ */
+
+@keyframes sonar-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes sos-pulse {
+  0%,
+  100% {
+    box-shadow: 0 8px 32px rgba(239, 68, 68, 0.28),
+      0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 14px 52px rgba(239, 68, 68, 0.42),
+      0 0 0 18px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes critical-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes pin-drop {
+  0% {
+    transform: translateY(-16px) scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(2px) scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes confidence-fill {
+  from {
+    width: 0;
+  }
+}
+
+/* ═══ MapLibre overrides ═════════════════════════════════════════════ */
 
 .mapboxgl-popup-content,
 .maplibregl-popup-content {
@@ -53,110 +664,118 @@ body {
 
 .mapboxgl-popup-tip,
 .maplibregl-popup-tip {
-  border-bottom-color: #09090b !important;
+  border-bottom-color: var(--surface-0) !important;
 }
 
 .maplibregl-ctrl-group {
-  background: rgba(9,9,11,0.8) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  border-radius: 8px !important;
-  backdrop-filter: blur(12px) !important;
+  background: rgba(9, 9, 11, 0.85) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
 }
 
 .maplibregl-ctrl-group button {
   background: transparent !important;
-  border-color: rgba(255,255,255,0.05) !important;
+  border-color: var(--line-faint) !important;
 }
 
 .maplibregl-ctrl-group button:hover {
-  background: rgba(255,255,255,0.08) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 .maplibregl-ctrl-group button + button {
-  border-top: 1px solid rgba(255,255,255,0.05) !important;
+  border-top: 1px solid var(--line-faint) !important;
 }
 
 .maplibregl-ctrl button {
-  color: #d4d4d8 !important;
+  color: var(--text-2) !important;
 }
 
-/* ── Animations (CSS-only, non-Tailwind) ─────────────────────────────────── */
-
-@keyframes critical-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-}
-.critical-pulse { animation: critical-pulse 1.5s ease-in-out infinite; }
-
-@keyframes sos-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-}
-.sos-pulse { animation: sos-pulse 1s ease-in-out infinite; }
-
-@keyframes slide-in-right {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.maplibregl-ctrl-attrib {
+  background: rgba(9, 9, 11, 0.7) !important;
+  color: var(--text-3) !important;
+  font-size: 10px !important;
+  border-radius: var(--radius-sm) 0 0 0;
 }
 
-@keyframes pin-drop {
-  0% { transform: translateY(-20px) scale(0.8); opacity: 0; }
-  60% { transform: translateY(2px) scale(1.05); opacity: 1; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
+.maplibregl-ctrl-attrib a {
+  color: var(--text-3) !important;
 }
 
-@keyframes confidence-fill {
-  from { width: 0; }
+/* ═══ Scrollbar ══════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #09090b; }
-::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+::-webkit-scrollbar-thumb {
+  background: #2a2a31;
+  border-radius: 999px;
+}
 
-.scrollbar-none::-webkit-scrollbar { display: none; }
-.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
 
-/* ── Autofill overrides (dark inputs) ────────────────────────────────────── */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ═══ Autofill (dark inputs) ═════════════════════════════════════════ */
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px #18181b inset !important;
-  -webkit-text-fill-color: #fafafa !important;
-  caret-color: #fafafa !important;
+  -webkit-box-shadow: 0 0 0 30px var(--surface-3) inset !important;
+  -webkit-text-fill-color: var(--text-1) !important;
+  caret-color: var(--text-1) !important;
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* ── Focus-visible rings ────────────────────────────────────────────────── */
+/* ═══ Reduced motion ═════════════════════════════════════════════════
+   Unlayered on purpose: this must beat utilities and component classes.
+   Spinners (animate-spin) are deliberately left alone — a stopped loader
+   reads as a broken app. */
 
-*:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.2);
-  outline-offset: 2px;
-}
+@media (prefers-reduced-motion: reduce) {
+  .sonar-ring,
+  .sonar-ring-delayed,
+  .sos-pulse,
+  .critical-pulse,
+  .live-dot,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-slide-in-right,
+  .animate-ping,
+  .animate-pulse {
+    animation: none !important;
+  }
 
-/* ── Utilities ───────────────────────────────────────────────────────────── */
+  /* MapLibre injects marker animation through inline styles. */
+  .maplibregl-marker,
+  .maplibregl-marker * {
+    animation: none !important;
+    transition: none !important;
+  }
 
-.data-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #71717a;
-}
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
 
-.mono {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-}
-
-@layer base {
-  * {
-    border-color: oklch(0.22 0.008 260);
+  html {
+    scroll-behavior: auto;
   }
 }

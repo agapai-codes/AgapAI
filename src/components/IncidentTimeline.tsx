@@ -17,15 +17,21 @@ interface IncidentTimelineProps {
   incidentId: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#fbbf24',
-  REVIEWING: '#a78bfa',
-  PRIORITIZED: '#f472b6',
-  DISPATCHED: '#60a5fa',
-  EN_ROUTE: '#38bdf8',
-  ARRIVED: '#818cf8',
-  RESOLVED: '#22c55e',
+/**
+ * Status tone only — four accents, no per-status hue. Escalation reads red,
+ * waiting reads amber, work in progress reads sky, done reads emerald.
+ */
+const STATUS_TONE: Record<string, string> = {
+  PENDING: 'var(--warning)',
+  REVIEWING: 'var(--info)',
+  PRIORITIZED: 'var(--critical)',
+  DISPATCHED: 'var(--info)',
+  EN_ROUTE: 'var(--info)',
+  ARRIVED: 'var(--success)',
+  RESOLVED: 'var(--success)',
 };
+
+const toneFor = (status: string): string => STATUS_TONE[status] || 'var(--text-3)';
 
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime();
@@ -58,109 +64,112 @@ export const IncidentTimeline: React.FC<IncidentTimelineProps> = ({ incidentId }
   }, [incidentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="rounded-xl border border-white/5 overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)' }}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-3 hover:bg-white/[0.03] transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Clock size={12} className="text-neutral-500" />
-          <span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">
-            Activity Timeline
-          </span>
+    <section className="well overflow-hidden" aria-label="Activity timeline">
+      {/* Header — toggle and refresh are siblings, never nested buttons */}
+      <div className="flex items-center justify-between border-b border-[var(--line-faint)] pl-3">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          className="flex flex-1 items-center gap-2 py-2.5 text-left transition-colors hover:text-ink-1"
+        >
+          <Clock size={13} className="text-ink-3" aria-hidden />
+          <span className="data-label">Activity Timeline</span>
           {history.length > 0 && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-neutral-500">
+            <span className="mono rounded border border-[var(--line)] bg-white/5 px-1.5 py-px text-[11px] text-ink-3">
               {history.length}
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); fetchHistory(); }}
-            className="p-1 rounded hover:bg-white/10 transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw size={10} className={`text-neutral-500 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          {expanded ? <ChevronDown size={12} className="text-neutral-500" /> : <ChevronRight size={12} className="text-neutral-500" />}
-        </div>
-      </button>
+          <span className="ml-auto pr-2 text-ink-3">
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); fetchHistory(); }}
+          className="btn btn-icon btn-ghost mr-1"
+          title="Refresh timeline"
+          aria-label="Refresh timeline"
+          disabled={loading}
+        >
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </div>
 
       {expanded && (
-        <div className="px-3 pb-3">
+        <div className="px-3 py-3">
           {loading && history.length === 0 ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="w-5 h-5 border-2 border-neutral-700 border-t-white rounded-full animate-spin" />
+            <div className="flex items-center justify-center py-6" role="status" aria-label="Loading timeline">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-ink-1" />
             </div>
           ) : history.length === 0 ? (
-            <p className="text-[11px] text-neutral-600 text-center py-4">No activity recorded yet</p>
+            <p className="py-4 text-center text-[13px] text-ink-3">No activity recorded yet</p>
           ) : (
             <div className="relative">
-              {/* Vertical line */}
-              <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-white/5" />
+              {/* Vertical rail */}
+              <div className="absolute bottom-2 left-[6px] top-2 w-px bg-[var(--line)]" aria-hidden />
 
-              <div className="space-y-3">
-                {history.map((entry, idx) => (
-                  <div key={entry.id} className="flex gap-3 relative">
-                    {/* Dot */}
-                    <div className="relative z-10 mt-1.5">
-                      <div
-                        className="w-[14px] h-[14px] rounded-full border-2 flex items-center justify-center"
+              <ol className="space-y-3.5">
+                {history.map((entry, idx) => {
+                  const tone = toneFor(entry.new_status);
+                  const isLatest = idx === 0;
+                  return (
+                    <li key={entry.id} className="relative flex gap-3">
+                      {/* Node */}
+                      <span
+                        aria-hidden
+                        className="relative z-10 mt-1.5 h-3 w-3 flex-none rounded-full border-2"
                         style={{
-                          borderColor: STATUS_COLORS[entry.new_status] || '#52525b',
-                          background: idx === 0 ? `${STATUS_COLORS[entry.new_status]}20` : 'transparent',
+                          borderColor: tone,
+                          background: isLatest ? tone : 'var(--surface-inset)',
                         }}
-                      >
-                        <div
-                          className="w-[6px] h-[6px] rounded-full"
-                          style={{ background: STATUS_COLORS[entry.new_status] || '#52525b' }}
-                        />
-                      </div>
-                    </div>
+                      />
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 pb-1">
-                      <div className="flex items-center gap-2">
-                        {entry.old_status && (
-                          <span className="text-[10px] text-neutral-500">{entry.old_status}</span>
-                        )}
-                        {entry.old_status && (
-                          <span className="text-[9px] text-neutral-600">→</span>
-                        )}
-                        <span
-                          className="text-[10px] font-bold uppercase"
-                          style={{ color: STATUS_COLORS[entry.new_status] || '#71717a' }}
-                        >
-                          {entry.new_status}
-                        </span>
-                      </div>
-
-                      {entry.changed_by && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <User size={9} className="text-neutral-600" />
-                          <span className="text-[9px] text-neutral-500">{entry.changed_by}</span>
+                      <div className="min-w-0 flex-1 pb-0.5">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {entry.old_status && (
+                            <span className="mono text-[11px] uppercase tracking-wide text-ink-3">
+                              {entry.old_status}
+                            </span>
+                          )}
+                          {entry.old_status && (
+                            <span className="text-[11px] text-ink-3" aria-hidden>→</span>
+                          )}
+                          <span
+                            className="mono text-[11px] font-bold uppercase tracking-wide"
+                            style={{ color: tone }}
+                          >
+                            {entry.new_status}
+                          </span>
                         </div>
-                      )}
 
-                      {entry.notes && (
-                        <div className="flex items-start gap-1 mt-1">
-                          <FileText size={9} className="text-neutral-600 mt-0.5 shrink-0" />
-                          <p className="text-[10px] text-neutral-400 leading-relaxed">{entry.notes}</p>
-                        </div>
-                      )}
+                        {entry.changed_by && (
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <User size={11} className="text-ink-3" aria-hidden />
+                            <span className="truncate text-[12px] text-ink-3">{entry.changed_by}</span>
+                          </div>
+                        )}
 
-                      <span className="text-[8px] text-neutral-600 mt-0.5 block font-mono">
-                        {timeAgo(entry.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        {entry.notes && (
+                          <div className="mt-1 flex items-start gap-1.5">
+                            <FileText size={11} className="mt-1 shrink-0 text-ink-3" aria-hidden />
+                            <p className="text-[13px] leading-relaxed text-ink-2">{entry.notes}</p>
+                          </div>
+                        )}
+
+                        <time className="mono mt-1 block text-[11px] text-ink-3">
+                          {timeAgo(entry.created_at)}
+                        </time>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

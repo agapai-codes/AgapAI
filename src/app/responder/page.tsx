@@ -4,9 +4,12 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '../../hooks/useAuth';
 import ResponderView from '../../views/ResponderView';
 
+/** Same sign-in treatment as the dispatcher gate — one visual language
+ *  across both roles. Demo credentials always visible. */
 function ResponderLogin({ onLogin, signIn }: { onLogin: () => void; signIn: (email: string, password: string) => Promise<any> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,26 +31,88 @@ function ResponderLogin({ onLogin, signIn }: { onLogin: () => void; signIn: (ema
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#09090b', color: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: '360px', padding: '0 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Agap<span style={{ color: '#ef4444' }}>AI</span> Responder</h1>
-          <p style={{ color: '#71717a', fontSize: '14px' }}>Sign in to view assigned incidents</p>
+    <div className="flex min-h-[calc(100dvh_-_var(--banner-h,0px))] items-center justify-center bg-surface-0 px-4 py-10">
+      <div className="w-full max-w-sm animate-fade-in">
+        {/* Identity */}
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--line)] bg-surface-2 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+            <Image src="/logo.jpg" alt="" width={32} height={32} className="rounded-md" />
+          </div>
+          <h1 className="text-2xl font-extrabold uppercase tracking-[0.16em]">
+            Agap<span className="text-[var(--critical)]">AI</span>
+          </h1>
+          <p className="data-label mt-2">Responder access</p>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required aria-label="Email"
-            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required aria-label="Password"
-            style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: '#fafafa', outline: 'none' }} />
-          {error && <p style={{ color: '#f87171', fontSize: '12px' }}>{error}</p>}
-          <button type="submit" disabled={loading}
-            style={{ background: '#3b82f6', color: '#fff', fontWeight: 600, borderRadius: '8px', border: 'none', padding: '12px', fontSize: '14px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#52525b' }}>
-          Demo: dispatcher@agapai.ph / agapai123
-        </p>
+
+        {/* Card */}
+        <div className="panel p-5 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="responder-email" className="data-label mb-1.5 block">
+                Email
+              </label>
+              <input
+                id="responder-email"
+                type="email"
+                placeholder="dispatcher@agapai.ph"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                aria-label="Email"
+                className="field"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="responder-password" className="data-label mb-1.5 block">
+                Password
+              </label>
+              <input
+                id="responder-password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                aria-label="Password"
+                className="field"
+              />
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="rounded-lg border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.1)] px-3 py-2"
+              >
+                <p className="text-[13px] text-[var(--critical)]">{error}</p>
+              </div>
+            )}
+
+            <button type="submit" disabled={loading} className="btn btn-primary w-full">
+              {loading ? (
+                <>
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-black/25 border-t-black"
+                    aria-hidden
+                  />
+                  Signing in…
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Demo credentials */}
+        <div className="mt-4 flex justify-center">
+          <p className="chip chip-neutral mono normal-case tracking-normal">
+            <span className="text-ink-3">Demo</span>
+            dispatcher@agapai.ph <span className="text-ink-3">/</span> agapai123
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -59,8 +124,11 @@ export default function ResponderPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#09090b', color: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#71717a' }}>Loading...</p>
+      <div className="flex min-h-[calc(100dvh_-_var(--banner-h,0px))] items-center justify-center bg-surface-0">
+        <div className="text-center" role="status" aria-label="Loading">
+          <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2 border-[var(--line-strong)] border-t-ink-1" />
+          <p className="data-label">Loading</p>
+        </div>
       </div>
     );
   }

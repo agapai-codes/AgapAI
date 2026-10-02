@@ -10,57 +10,54 @@ interface UrgencyBadgeProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
+/**
+ * Urgency is the only thing coloured on an incident row. Critical and high
+ * share the red family; critical earns the solid fill.
+ */
 const urgencyConfig = {
   critical: {
-    className: 'bg-[#B91C1C] text-white border-[#B91C1C]',
+    className: 'chip-critical-solid',
     label: 'CRITICAL',
-    icon: '●'
   },
   high: {
-    className: 'bg-[#DC2626] text-white border-[#DC2626]',
+    className: 'chip-critical',
     label: 'HIGH',
-    icon: '●'
   },
   medium: {
-    className: 'bg-[#F59E0B] text-[#080C14] border-[#F59E0B]',
+    className: 'chip-warning',
     label: 'MEDIUM',
-    icon: '●'
   },
   low: {
-    className: 'bg-[#10B981] text-white border-[#10B981]',
+    className: 'chip-success',
     label: 'LOW',
-    icon: '●'
   },
-};
+} as const;
 
 export default function UrgencyBadge({ urgency, reason, size = 'md' }: UrgencyBadgeProps) {
   const config = urgencyConfig[urgency];
-  const sizeClasses = size === 'sm' ? 'text-[9px] px-1.5 py-0' :
-                      size === 'lg' ? 'text-xs px-3 py-1' :
-                      'text-[10px] px-2 py-0.5';
+  const sizeClasses =
+    size === 'sm'
+      ? 'px-1.5 text-[11px]'
+      : size === 'lg'
+        ? 'px-3 py-1 text-xs'
+        : '';
 
   const badge = (
     <Badge
       variant="outline"
-      className={cn(
-        "font-bold rounded-none gap-1 mono tracking-wider",
-        config.className,
-        sizeClasses
-      )}
+      aria-label={`Urgency: ${config.label}`}
+      className={cn('chip mono', config.className, sizeClasses)}
     >
-      <span>{config.icon}</span>
-      <span>{config.label}</span>
+      {config.label}
     </Badge>
   );
 
   if (reason) {
     return (
       <Tooltip>
-        <TooltipTrigger>
-          {badge}
-        </TooltipTrigger>
+        <TooltipTrigger>{badge}</TooltipTrigger>
         <TooltipContent>
-          <p className="max-w-xs">{reason}</p>
+          <p className="max-w-xs text-xs">{reason}</p>
         </TooltipContent>
       </Tooltip>
     );

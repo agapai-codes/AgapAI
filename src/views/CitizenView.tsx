@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Toaster, toast } from 'sonner';
-import { Zap, Mic, ArrowRight, RotateCcw, ChevronRight, X, Send, CheckCircle2, MapPin } from 'lucide-react';
+import { Mic, RotateCcw, ChevronRight, X, Send, CheckCircle2, MapPin, Satellite, TriangleAlert } from 'lucide-react';
 import { useIncidents } from '../hooks/useIncidents';
 import { extractEmergencyInfo } from '../lib/gemini';
 import { getFirstAid, type FirstAidProtocol } from '../lib/firstAid';
@@ -11,8 +11,12 @@ import { useAuth } from '../hooks/useAuth';
 import { getRealCoordinates, getRandomPHCoords } from '../utils/geolocation';
 import { resolveIncidentCoords, isValidPHCoords, sanitizeCoords } from '../utils/coordinates';
 import VoiceRecorder from '../components/VoiceRecorder';
-import { isDemo, isLive, APP_MODE } from '../lib/config';
-import type { IncidentType, UrgencyLevel } from '../types/incident';
+import { isDemo, APP_MODE } from '../lib/config';
+import { extractFallback } from '../lib/extractionFallback';
+import { useConnection } from '../hooks/useConnection';
+import { useSosQueue } from '../hooks/useSosQueue';
+import { smsHref, type FlushResult } from '@/lib/offlineQueue';
+import type { CreateIncidentPayload, IncidentType, UrgencyLevel } from '../types/incident';
 
 interface Submission {
   incident_type: string;
@@ -35,14 +39,71 @@ function toIncidentType(value: string): IncidentType {
   return 'MEDICAL';
 }
 
+/**
+ * Single source of truth for urgency colour on the citizen side.
+ * Mirrors the dispatch palette: red → amber → emerald.
+ */
+const URGENCY_INK: Record<string, string> = {
+  high: 'var(--critical)',
+  medium: 'var(--warning)',
+  low: 'var(--success)',
+};
+
+const urgencyColor = (u: string) => URGENCY_INK[u] ?? URGENCY_INK.medium;
+
+/** Counts from the most recent queue flush, used for honest panel copy. */
+type FlushTally = { sent: number; failed: number; remaining: number; rejected: number };
+
+/** `FlushResult` may gain an optional `rejected` field — read it defensively. */
+const tallyOf = (r: FlushResult): FlushTally => ({
+  sent: r.sent,
+  failed: r.failed,
+  remaining: r.remaining,
+  rejected: (r as FlushResult & { rejected?: number }).rejected ?? 0,
+});
+
+/** One honest badge: what the link is doing right now. Never hard-coded. */
+function LinkBadge({
+  offline, satelliteLike, pending, compact,
+}: { offline: boolean; satelliteLike: boolean; pending: number; compact?: boolean }) {
+  const tone = offline ? 'chip-critical' : satelliteLike ? 'chip-warning' : 'chip-success';
+  const label = offline ? 'No signal' : satelliteLike ? 'Satellite link' : 'Online';
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`chip ${tone}`} role="status" aria-live="polite">
+        <span className={`status-dot ${offline ? 'status-dot-off' : satelliteLike ? 'status-dot-warn' : 'status-dot-ok live-dot'}`} />
+        {label}
+      </span>
+      {pending > 0 && (
+        <span className="chip chip-warning mono tracking-normal">
+          {pending} queued
+        </span>
+      )}
+      {!compact && offline && (
+        <span className="hidden sm:inline text-2xs text-ink-3">
+          Reports stay on this device until signal returns
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function CitizenView() {
   const { createIncident } = useIncidents();
   const { user } = useAuth();
+  const link = useConnection();
+  const queue = useSosQueue(link.offline);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractionStep, setExtractionStep] = useState<ExtractionStep>(null);
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  /** True when the last report could not be transmitted and is stored locally. */
+  const [reportQueued, setReportQueued] = useState(false);
+  /** Tally of the newest flush while a report is queued — the panel's honest delivery state. */
+  const [flushTally, setFlushTally] = useState<FlushTally | null>(null);
+  /** Last `queue.lastFlush` object adopted, so a new report never inherits a stale tally. */
+  const seenFlushRef = useRef<FlushResult | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [firstAidProtocol, setFirstAidProtocol] = useState<FirstAidProtocol | null>(null);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -58,6 +119,16 @@ export default function CitizenView() {
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Adopt every flush outcome — manual or automatic — while a report is
+  // queued, so the panel never keeps claiming "will transmit by itself"
+  // after the queue has already delivered (or permanently rejected) it.
+  useEffect(() => {
+    const last = queue.lastFlush;
+    if (!last || last === seenFlushRef.current) return;
+    seenFlushRef.current = last;
+    if (reportQueued) setFlushTally(tallyOf(last));
+  }, [queue.lastFlush, reportQueued]);
 
   const acquireGPS = useCallback((): Promise<{ lng: number; lat: number }> => {
     return new Promise((resolve) => {
@@ -101,10 +172,37 @@ export default function CitizenView() {
     });
   }, []);
 
+  /**
+   * Store the report for automatic retry — but if the storage write itself
+   * fails (quota, blocked storage) the report exists nowhere on the device.
+   * In that case hand the payload to the OS messaging path as the escape
+   * hatch. Returns true only when the report is safely queued.
+   */
+  const enqueueWithSmsFallback = useCallback(
+    async (payload: CreateIncidentPayload, failureMessage: string): Promise<boolean> => {
+      try {
+        await queue.enqueue(payload);
+        return true;
+      } catch (err) {
+        console.error('Queue storage failed:', err);
+        toast.error(failureMessage, {
+          action: {
+            label: 'Send as SMS instead',
+            onClick: () => {
+              window.location.href = smsHref(payload);
+            },
+          },
+        });
+        return false;
+      }
+    },
+    [queue]
+  );
+
   const handleSOS = useCallback(async () => {
     try {
       const coords = await acquireGPS();
-      const result = await createIncident({
+      const payload: CreateIncidentPayload = {
         type: 'MEDICAL',
         location: 'Current Location (GPS)',
         description: 'Emergency beacon activated',
@@ -113,17 +211,40 @@ export default function CitizenView() {
         coordinates: coords,
         urgency: 'HIGH',
         urgency_reason: 'One-tap SOS activated',
-      });
+      };
+
+      // No coverage at all: do not attempt a request that can only time out.
+      // Store the beacon so it transmits the instant a link appears.
+      if (link.offline) {
+        const saved = await enqueueWithSmsFallback(
+          payload,
+          'No signal — and the beacon could not be saved on this device.'
+        );
+        if (saved) {
+          toast.warning('No signal — beacon saved on this device and will send automatically.');
+        }
+        return;
+      }
+
+      const result = await createIncident(payload);
       if (result) {
         toast.success('Emergency beacon activated');
-      } else {
-        toast.error('Failed to send beacon. Please try again.');
+        return;
+      }
+
+      // Looked online but the send failed (weak/satellite link, server down).
+      const saved = await enqueueWithSmsFallback(
+        payload,
+        'Could not reach dispatch — and the beacon could not be saved on this device.'
+      );
+      if (saved) {
+        toast.warning('Could not reach dispatch — beacon queued and will retry.');
       }
     } catch (err) {
       console.error('SOS failed:', err);
       toast.error('Emergency beacon failed. Check your connection.');
     }
-  }, [acquireGPS, createIncident, user]);
+  }, [acquireGPS, createIncident, user, link.offline, enqueueWithSmsFallback]);
 
   const processText = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -136,7 +257,25 @@ export default function CitizenView() {
 
     setExtractionStep('analyzing-transcript');
     try {
-      const extracted = await extractEmergencyInfo(text);
+      // AI extraction needs the network. With no coverage — or if the AI call
+      // fails for any reason — fall back to the local keyword extractor so a
+      // report is still produced and queued instead of being lost.
+      type Extracted =
+        | Awaited<ReturnType<typeof extractEmergencyInfo>>
+        | ReturnType<typeof extractFallback>;
+
+      let extracted: Extracted;
+      if (link.offline) {
+        extracted = extractFallback(text);
+      } else {
+        try {
+          extracted = await extractEmergencyInfo(text);
+        } catch (aiErr) {
+          console.warn('[citizen] AI extraction unavailable, using local fallback', aiErr);
+          extracted = extractFallback(text);
+        }
+      }
+
       if (!extracted) {
         throw new Error('Failed to extract emergency information');
       }
@@ -154,8 +293,9 @@ export default function CitizenView() {
       const conditionText = (sub.condition || sub.incident_type || 'general emergency').trim();
       setFirstAidProtocol(getFirstAid(conditionText));
 
-      setExtractionStep('creating-report');
-      await createIncident({
+      // One payload object shared by the live send and the offline queue, so a
+      // queued report is identical to one transmitted immediately.
+      const payload: CreateIncidentPayload = {
         type: toIncidentType(extracted.incident_type),
         location: extracted.location_description || 'Iligan City, Philippines',
         description: extracted.condition || text,
@@ -169,13 +309,33 @@ export default function CitizenView() {
         hazards: extracted.hazards,
         transcript: text,
         confidence: extracted.confidence,
-        consciousness: extracted.consciousness,
-        breathing: extracted.breathing,
-        bleeding: extracted.bleeding,
-      });
+        consciousness: extracted.consciousness ?? undefined,
+        breathing: extracted.breathing ?? undefined,
+        bleeding: extracted.bleeding ?? undefined,
+      };
 
-      setReportSubmitted(true);
-      toast.success('Report submitted');
+      setExtractionStep('creating-report');
+      // Skip the request entirely when there is provably no link — it would
+      // only hang until timeout before failing.
+      const saved = link.offline ? null : await createIncident(payload);
+
+      if (saved) {
+        setReportQueued(false);
+        setReportSubmitted(true);
+        toast.success('Report submitted');
+      } else {
+        const queued = await enqueueWithSmsFallback(
+          payload,
+          'No connection — and the report could not be saved on this device.'
+        );
+        if (queued) {
+          setFlushTally(null);
+          seenFlushRef.current = queue.lastFlush;
+          setReportQueued(true);
+          setReportSubmitted(true);
+          toast.warning('No connection — report saved on this device and will send automatically.');
+        }
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to process report. Please try again.');
@@ -183,9 +343,38 @@ export default function CitizenView() {
       setIsProcessing(false);
       setExtractionStep(null);
     }
-  }, [gpsCoords, acquireGPS, createIncident, user]);
+  }, [gpsCoords, acquireGPS, createIncident, user, link.offline, enqueueWithSmsFallback, queue.lastFlush]);
 
   const handleVoiceSubmit = useCallback(() => processText(transcript), [transcript, processText]);
+
+  /**
+   * Manual flush: consume the FlushResult so the panel and the toasts tell
+   * the truth — delivered, still waiting, or permanently rejected.
+   */
+  const handleTrySend = useCallback(async () => {
+    try {
+      const r = await queue.flush();
+      const rejected = (r as FlushResult & { rejected?: number }).rejected ?? 0;
+      if (r.sent > 0) {
+        toast.success(
+          r.remaining > 0
+            ? `${r.sent} report${r.sent === 1 ? '' : 's'} sent · ${r.remaining} still queued`
+            : `${r.sent} report${r.sent === 1 ? '' : 's'} sent`
+        );
+      } else if (rejected > 0) {
+        toast.error(
+          `${rejected} report${rejected === 1 ? '' : 's'} rejected — needs attention and will not retry on its own.`
+        );
+      } else if (r.remaining > 0) {
+        toast.warning('Still no link — saved on this device and will retry automatically.');
+      } else {
+        toast.info('Nothing left to send.');
+      }
+    } catch (err) {
+      console.error('Queue flush failed:', err);
+      toast.error('Could not reach dispatch to check the queue — try again.');
+    }
+  }, [queue]);
 
   const handleToggleRecording = useCallback(async () => {
     if (!isRecording) {
@@ -212,6 +401,8 @@ export default function CitizenView() {
     setTranscript('');
     setInterimTranscript('');
     setReportSubmitted(false);
+    setReportQueued(false);
+    setFlushTally(null);
     setSubmission(null);
     setFirstAidProtocol(null);
     setIsRecording(false);
@@ -220,253 +411,392 @@ export default function CitizenView() {
     setGpsStatus('idle');
   };
 
-  const urgencyColor = (u: string) =>
-    u === 'high' ? '#ef4444' : u === 'medium' ? '#eab308' : '#22c55e';
-
   const extractionStepLabel: Record<ExtractionStepKey, string> = {
-    'capturing-location': 'Capturing location...',
-    'analyzing-transcript': 'Analyzing transcript with AI...',
-    'creating-report': 'Creating incident report...',
+    'capturing-location': 'Capturing location…',
+    'analyzing-transcript': 'Reading the report…',
+    'creating-report': 'Filing the report…',
   };
+
+  // ─── SHARED HEADER ────────────────────────────────────────────────
+  const header = (
+    <header className="chrome sticky top-0 z-30 h-14 shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <Image src="/logo.jpg" alt="" width={24} height={24} className="rounded-md shrink-0" />
+        <span className="font-extrabold text-sm tracking-wider uppercase">
+          Agap<span className="text-[var(--critical)]">AI</span>
+        </span>
+        <span className={`chip ${isDemo ? 'chip-neutral' : 'chip-success'}`}>
+          {APP_MODE}
+        </span>
+      </div>
+      <div className="flex items-center gap-3 min-w-0">
+        <LinkBadge
+          offline={link.offline}
+          satelliteLike={link.satelliteLike}
+          pending={queue.pending}
+          compact
+        />
+        {mounted && <span className="mono text-xs text-ink-3 hidden sm:block">{currentTime}</span>}
+      </div>
+    </header>
+  );
 
   // ─── REPORT SUBMITTED VIEW ────────────────────────────────────────
   if (reportSubmitted && submission) {
+    const summary: { l: string; v: string; ink?: string }[] = [
+      { l: 'Type', v: submission.incident_type.replace('_', ' ') },
+      { l: 'Urgency', v: submission.urgency, ink: urgencyColor(submission.urgency.toLowerCase()) },
+      { l: 'Condition', v: submission.condition },
+      { l: 'People', v: String(submission.people_affected) },
+      { l: 'Location', v: submission.location_description },
+      { l: 'GPS', v: submission.gps ? `${submission.gps.lat.toFixed(4)}, ${submission.gps.lng.toFixed(4)}` : 'Unavailable' },
+    ];
+
+    // Honest outcome of THIS report: delivered, still on this device, or
+    // permanently rejected by the server (it will never retry on its own).
+    const rejectedItems = queue.items.filter((item) => item.permanent);
+    const outcome: 'sent' | 'queued' | 'rejected' = !reportQueued
+      ? 'sent'
+      : queue.pending > 0
+        ? 'queued'
+        : rejectedItems.length > 0
+          ? 'rejected'
+          : 'sent';
+
     return (
-      <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex flex-col justify-between">
-        <header className="h-16 border-b border-zinc-800/60 flex items-center justify-between px-6 bg-[#09090b]/80 backdrop-blur-xl relative z-20">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.jpg" alt="AgapAI" width={32} height={32} className="rounded-lg" />
-            <span className="font-bold text-lg text-[#fafafa]">Agap<span className="text-[#ef4444]">AI</span></span>
-            <span className={`text-[10px] font-bold tracking-widest px-2 py-0.5 rounded-full border ${isDemo ? 'bg-zinc-800/60 text-[#a1a1aa] border-zinc-700/40' : 'bg-[#22c55e]/10 text-[#22c55e] border-[#22c55e]/20'}`}>
-              {APP_MODE.toUpperCase()}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="relative inline-flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-[#4ade80] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22c55e]" />
-            </span>
-            <span className="text-[#22c55e] text-xs font-semibold">ONLINE</span>
-          </div>
-        </header>
+      <div className="min-h-dvh bg-surface-0 text-ink-1 flex flex-col">
+        <Toaster position="top-center" theme="dark" />
+        {header}
 
-        <div className="max-w-md mx-auto py-16 px-6">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 rounded-full bg-[#22c55e]/10 flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(34,197,94,0.15)]">
-              <CheckCircle2 className="w-8 h-8 text-[#22c55e]" />
+        <main className="flex-1 w-full max-w-lg mx-auto px-4 sm:px-6 py-8 sm:py-10">
+          {/* ── Outcome ── */}
+          <section className="text-center mb-8" role="status" aria-live="polite">
+            <div className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full ${
+              outcome === 'sent'
+                ? 'bg-[color-mix(in_srgb,var(--success)_14%,transparent)]'
+                : outcome === 'rejected'
+                  ? 'bg-[color-mix(in_srgb,var(--critical)_14%,transparent)]'
+                  : 'bg-[color-mix(in_srgb,var(--warning)_14%,transparent)]'
+            }`}>
+              {outcome === 'sent'
+                ? <CheckCircle2 size={30} className="text-[var(--success)]" aria-hidden />
+                : outcome === 'rejected'
+                  ? <TriangleAlert size={30} className="text-[var(--critical)]" aria-hidden />
+                  : <Satellite size={30} className="text-[var(--warning)]" aria-hidden />}
             </div>
-            <h1 className="text-2xl font-bold text-[#fafafa] mb-2">Report Submitted</h1>
-            <p className="text-[#a1a1aa]">Emergency services have been notified</p>
-          </div>
 
-          <div className="bg-[#18181b]/60 backdrop-blur-xl border border-zinc-800/40 shadow-2xl rounded-xl p-6 mb-6">
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { l: 'TYPE', v: submission.incident_type.replace('_', ' ') },
-                { l: 'URGENCY', v: submission.urgency.toUpperCase(), c: urgencyColor(submission.urgency) },
-                { l: 'CONDITION', v: submission.condition },
-                { l: 'PEOPLE', v: String(submission.people_affected) },
-                { l: 'LOCATION', v: submission.location_description },
-                { l: 'GPS', v: submission.gps ? `${submission.gps.lat.toFixed(4)}, ${submission.gps.lng.toFixed(4)}` : 'N/A' },
-              ].map(i => (
-                <div key={i.l} className="bg-[#09090b]/80 rounded-lg p-3 border border-zinc-800/60">
-                  <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-1">{i.l}</p>
-                  <p className="font-medium text-[#fafafa] capitalize text-[13px]" style={{ color: (i as any).c || undefined }}>{i.v}</p>
-                </div>
-              ))}
-            </div>
-            {submission.hazards.length > 0 && (
-              <div className="mt-3">
-                <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-1.5">HAZARDS</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {submission.hazards.map((h, i) => (
-                    <span key={i} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20">{h.toUpperCase()}</span>
-                  ))}
-                </div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {outcome === 'sent'
+                ? 'Report submitted'
+                : outcome === 'rejected'
+                  ? 'Report needs attention'
+                  : 'Report saved on this device'}
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-ink-2">
+              {outcome === 'sent'
+                ? 'Dispatch has been notified. Keep this screen open in case they call back.'
+                : outcome === 'rejected'
+                  ? 'The server rejected this report, so it will not retry on its own. Send it as SMS below or file a new report.'
+                  : 'There is no signal right now. The report will transmit by itself the moment a link comes back — you can also push it manually below.'}
+            </p>
+
+            {outcome !== 'sent' && (
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <button
+                  type="button"
+                  onClick={handleTrySend}
+                  disabled={queue.flushing}
+                  className="btn btn-warning"
+                >
+                  {queue.flushing ? 'Sending…' : 'Try sending now'}
+                </button>
+                <a
+                  href={`sms:?&body=${encodeURIComponent('AGAPAI SOS')}`}
+                  className="btn btn-outline"
+                >
+                  Send as SMS
+                </a>
               </div>
             )}
-            <p className="mt-3 text-xs text-[#71717a] italic">{submission.urgency_reason}</p>
-          </div>
 
-          {firstAidProtocol && (
-            <div className="bg-[#10b981]/5 border border-[#10b981]/20 rounded-xl p-6 mb-6">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-[#10b981]/15 flex items-center justify-center">
-                  <span className="text-base">🏥</span>
+            {reportQueued && queue.flushing && (
+              <p className="mono mt-3 text-xs text-ink-3">Retrying — do not close this tab</p>
+            )}
+
+            {/* What the last flush actually did — never claim delivery that did not happen. */}
+            {reportQueued && flushTally && !queue.flushing && (
+              <p className={`mono mt-3 text-xs ${
+                flushTally.sent > 0
+                  ? 'text-[var(--success)]'
+                  : flushTally.rejected > 0
+                    ? 'text-[var(--critical)]'
+                    : 'text-ink-3'
+              }`}>
+                {flushTally.sent > 0
+                  ? `${flushTally.sent} report${flushTally.sent === 1 ? '' : 's'} sent${flushTally.remaining > 0 ? ` · ${flushTally.remaining} still queued` : ''}`
+                  : flushTally.rejected > 0
+                    ? `${flushTally.rejected} rejected — needs attention${flushTally.remaining > 0 ? ` · ${flushTally.remaining} still queued` : ''}`
+                    : flushTally.remaining > 0
+                      ? 'Still waiting — will retry automatically when a link is confirmed.'
+                      : 'Nothing left in the queue.'}
+              </p>
+            )}
+
+            {/* Permanently rejected reports: surfaced with the server's reason. */}
+            {reportQueued && rejectedItems.length > 0 && (
+              <div className="mt-5 flex flex-col gap-2">
+                {rejectedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-[color-mix(in_srgb,var(--critical)_28%,transparent)] bg-[color-mix(in_srgb,var(--critical)_8%,transparent)] p-3 text-left"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[var(--critical)]">
+                        <TriangleAlert size={13} aria-hidden /> Rejected — needs attention
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void queue.discard(item.id)}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        Discard
+                      </button>
+                    </div>
+                    <p className="break-words text-xs leading-relaxed text-ink-2">
+                      {item.lastError || 'The server rejected this report — retrying cannot fix it.'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ── What was reported ── */}
+          <section className="panel p-4 sm:p-5 mb-4">
+            <h2 className="data-label mb-3">Report contents</h2>
+            <dl className="grid grid-cols-2 gap-2">
+              {summary.map(item => (
+                <div key={item.l} className="well p-3">
+                  <dt className="data-label mb-1">{item.l}</dt>
+                  <dd
+                    className="text-sm font-medium capitalize leading-snug break-words"
+                    style={{ color: item.ink ?? 'var(--text-1)' }}
+                  >
+                    {item.v}
+                  </dd>
                 </div>
-                <div>
-                  <h3 className="text-[#10b981] font-bold text-sm">FIRST-AID: {firstAidProtocol.title.toUpperCase()}</h3>
-                  <p className="text-[#6b7280] text-[10px] font-mono">{firstAidProtocol.source}</p>
+              ))}
+            </dl>
+
+            {submission.hazards.length > 0 && (
+              <div className="mt-4">
+                <p className="data-label mb-2">Hazards</p>
+                <ul className="flex flex-wrap gap-1.5">
+                  {submission.hazards.map((h, i) => (
+                    <li key={i} className="chip chip-critical mono tracking-normal normal-case">
+                      {h}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="mt-4 border-t border-[var(--line-faint)] pt-3 text-xs leading-relaxed text-ink-3">
+              {submission.urgency_reason}
+            </p>
+          </section>
+
+          {/* ── First aid ── */}
+          {firstAidProtocol && (
+            <section className="rounded-xl border border-[color-mix(in_srgb,var(--success)_30%,transparent)] bg-[color-mix(in_srgb,var(--success)_6%,transparent)] p-4 sm:p-5 mb-4">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="text-xl" aria-hidden>🏥</span>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--success)]">
+                    First aid · {firstAidProtocol.title}
+                  </h2>
+                  <p className="mono text-2xs text-ink-3">{firstAidProtocol.source}</p>
                 </div>
               </div>
-              <ol className="m-0 mb-3 pl-5 list-decimal">
+
+              <ol className="mb-3 space-y-2">
                 {firstAidProtocol.steps.map((step, i) => (
-                  <li key={i} className="text-[#d4d4d8] text-[13px] leading-relaxed mb-1.5">{step}</li>
+                  <li key={i} className="flex gap-3 text-sm leading-relaxed text-ink-2">
+                    <span className="mono mt-0.5 w-5 shrink-0 text-right text-xs font-bold text-[var(--success)]">
+                      {i + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
                 ))}
               </ol>
+
               {firstAidProtocol.warnings.length > 0 && (
-                <div className="bg-[#ef4444]/5 border border-[#ef4444]/15 rounded-lg p-3">
-                  <p className="text-[11px] font-bold text-[#ef4444] mb-1.5">⚠ WARNINGS</p>
-                  {firstAidProtocol.warnings.map((w, i) => (
-                    <p key={i} className="text-xs text-[#a1a1aa] leading-relaxed">• {w}</p>
-                  ))}
+                <div className="rounded-lg border border-[color-mix(in_srgb,var(--critical)_28%,transparent)] bg-[color-mix(in_srgb,var(--critical)_8%,transparent)] p-3">
+                  <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[var(--critical)]">
+                    <TriangleAlert size={13} aria-hidden /> Do not
+                  </p>
+                  <ul className="space-y-1">
+                    {firstAidProtocol.warnings.map((w, i) => (
+                      <li key={i} className="text-xs leading-relaxed text-ink-2">{w}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
-            </div>
+            </section>
           )}
 
+          {/* ── Next steps ── */}
           <div className="flex gap-3">
-            <a href="/dispatcher" className="flex-1"><button className="w-full bg-[#fafafa] text-[#09090b] h-12 font-medium rounded-lg border-none cursor-pointer text-sm flex items-center justify-center gap-2">Dispatcher Dashboard <ArrowRight size={16} /></button></a>
-            <button onClick={handleReset} className="h-12 border border-[#3f3f46] text-[#d4d4d8] rounded-lg bg-transparent cursor-pointer flex items-center gap-2 px-4"><RotateCcw size={16} /> New</button>
+            <a href="/dispatcher" className="btn btn-primary flex-1">Dispatcher dashboard</a>
+            <button type="button" onClick={handleReset} className="btn btn-outline">
+              <RotateCcw size={15} aria-hidden /> New
+            </button>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
   // ─── MAIN LANDING VIEW ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col relative overflow-x-hidden sm:overflow-y-auto">
+    <div className="min-h-dvh bg-surface-0 text-white flex flex-col relative">
       <Toaster position="top-center" theme="dark" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(239,68,68,0.08)_0%,rgba(9,9,11,0)_60%)] pointer-events-none z-0" />
 
-      {/* Header */}
-      <header className="h-12 min-h-[48px] border-b border-white/5 flex items-center justify-between px-4 sm:px-6 relative z-20 shrink-0"
-        style={{ background: 'rgba(9,9,11,0.95)', backdropFilter: 'blur(16px)' }}>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <Image src="/logo.jpg" alt="AgapAI" width={22} height={22} className="rounded-md" />
-          <span className="font-extrabold text-sm tracking-wider uppercase">Agap<span className="text-red-500">AI</span></span>
-          <span className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${
-            isLive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
-          }`}>
-            {APP_MODE.toUpperCase()}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: 'live-pulse 1.5s ease-in-out infinite' }} />
-            <span className="text-[10px] text-emerald-400 font-semibold hidden sm:inline">ONLINE</span>
-          </div>
-          {mounted && <span className="text-[10px] text-neutral-500 font-mono hidden sm:block">{currentTime}</span>}
-        </div>
-      </header>
+      {/* Atmosphere: a single faint red wash behind the beacon. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[420px] z-0"
+        style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(239,68,68,0.10), rgba(9,9,11,0) 70%)' }}
+      />
 
-      {/* Hero + SOS — single column scrollable on mobile */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center w-full max-w-xl mx-auto px-4 py-8 sm:py-0 relative z-20">
-        {/* Branding */}
-        <div className="mb-6 sm:mb-8 animate-fade-in">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-2 tracking-tight">Agap<span className="text-red-500">AI</span></h1>
-          <p className="text-neutral-400 text-sm">Emergency Response Command Center</p>
-          <p className="text-neutral-600 text-[10px] mt-1 font-mono">IEEE SumpAI 2026 — MSU-IIT</p>
+      {header}
+
+      <main className="relative z-10 flex-1 w-full max-w-xl mx-auto px-5 flex flex-col items-center text-center pt-6 pb-12">
+        {/* ── Brand ── */}
+        <div className="mb-1">
+          <h1 className="text-3xl font-extrabold tracking-tight">
+            Agap<span className="text-[var(--critical)]">AI</span>
+          </h1>
+          <p className="mt-1 text-sm text-ink-2">Emergency response, Iligan City</p>
+          <p className="mono mt-1 text-2xs uppercase tracking-[0.14em] text-ink-3">
+            IEEE SumpAI 2026 — MSU-IIT
+          </p>
         </div>
 
-        {/* SOS Button — dramatic */}
-        <div className="relative flex flex-col items-center justify-center my-4 sm:my-6">
-          <div className="absolute w-56 h-56 sm:w-60 sm:h-60 rounded-full border border-red-500/10" style={{ animation: 'sonar-ping 3s ease-out infinite' }} />
-          <div className="absolute w-44 h-44 sm:w-48 sm:h-48 rounded-full border border-red-500/20" style={{ animation: 'sonar-ping 3s ease-out infinite 1s' }} />
+        {/* ── SOS beacon ── */}
+        <div className="relative mt-6 mb-3 flex h-56 w-56 items-center justify-center sm:h-64 sm:w-64">
+          <span aria-hidden className="sonar-ring absolute h-44 w-44 rounded-full border border-[color-mix(in_srgb,var(--critical)_22%,transparent)]" />
+          <span aria-hidden className="sonar-ring-delayed absolute h-56 w-56 rounded-full border border-[color-mix(in_srgb,var(--critical)_14%,transparent)] sm:h-64 sm:w-64" />
           <button
+            type="button"
             onClick={handleSOS}
-            aria-label="Emergency SOS - Tap to activate emergency beacon"
-            className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-b from-[#ef4444] to-[#b91c1c] text-white text-lg sm:text-xl font-black tracking-widest border-none cursor-pointer flex items-center justify-center z-30 transition-all hover:scale-105 hover:shadow-[0_0_80px_rgba(239,68,68,0.4)] active:scale-95 focus-visible:ring-4 focus-visible:ring-red-500/30"
-            style={{ boxShadow: '0 0 60px rgba(239,68,68,0.3), 0 0 120px rgba(239,68,68,0.1)' }}
+            aria-label="Emergency SOS — tap to activate the emergency beacon"
+            className="sos-pulse relative z-10 flex h-36 w-36 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--critical)_60%,transparent)] bg-gradient-to-b from-[#ef4444] to-[#b91c1c] text-white transition-transform duration-150 hover:scale-[1.04] active:scale-95 sm:h-40 sm:w-40"
           >
-            SOS
+            <span className="text-2xl font-black tracking-[0.22em] indent-[0.22em]">SOS</span>
           </button>
         </div>
 
-        <p className="text-xs font-medium text-neutral-400 mt-3 sm:mt-4">
-          {isRecording ? 'Listening... Speak now' : 'Tap SOS for instant beacon'}
+        <p className="text-sm font-medium text-ink-2" role="status" aria-live="polite">
+          {isRecording ? 'Listening — speak now' : 'Tap SOS to send your location immediately'}
         </p>
 
-        {/* GPS Status */}
-        {gpsStatus !== 'idle' && (
-          <p className={`text-[10px] mt-1.5 flex items-center gap-1 font-mono ${gpsStatus === 'ready' ? 'text-emerald-400' : gpsStatus === 'loading' ? 'text-amber-400' : 'text-red-400'}`}>
-            <MapPin size={10} />
-            {gpsStatus === 'loading' ? 'Acquiring GPS...' : gpsStatus === 'ready' ? 'GPS ready' : 'Using approximate location'}
-          </p>
-        )}
+        {/* ── GPS ── */}
+        <p
+          className={`mono mt-2 flex items-center gap-1.5 text-xs ${
+            gpsStatus === 'ready' ? 'text-[var(--success)]'
+            : gpsStatus === 'loading' ? 'text-[var(--warning)]'
+            : gpsStatus === 'error' ? 'text-[var(--critical)]'
+            : 'text-ink-3'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <MapPin size={12} aria-hidden />
+          {gpsStatus === 'idle' && 'GPS not requested yet'}
+          {gpsStatus === 'loading' && 'Acquiring GPS…'}
+          {gpsStatus === 'ready' && 'GPS ready'}
+          {gpsStatus === 'error' && 'Approximate location only'}
+          {gpsCoords && gpsStatus !== 'loading' && (
+            <span className="text-ink-3">· {gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)}</span>
+          )}
+        </p>
 
-        {/* Voice Report button — secondary action */}
+        {/* ── Secondary actions ── */}
         {!transcript && !isRecording && (
-          <button onClick={() => setShowVoiceModal(true)}
-            className="mt-4 px-5 py-2.5 bg-white/5 border border-white/10 text-neutral-300 rounded-full text-[11px] font-semibold tracking-wider flex items-center gap-2 transition-all hover:bg-white/10 hover:text-white hover:border-white/20 focus-visible:ring-2 focus-visible:ring-white/20"
-            style={{ backdropFilter: 'blur(12px)' }}>
-            <Mic size={14} /> Voice Report
-          </button>
-        )}
-
-        {/* Demo button */}
-        {!transcript && !isRecording && (
-          <div className="mt-3 sm:mt-4 flex flex-col items-center">
-            <button onClick={handleTryDemo}
-              className="px-4 py-2 bg-white/5 border border-white/10 text-neutral-500 rounded-full text-[10px] font-semibold tracking-wider uppercase cursor-pointer flex items-center gap-1.5 transition-all hover:bg-white/10 hover:text-neutral-300 focus-visible:ring-2 focus-visible:ring-white/20"
-              style={{ backdropFilter: 'blur(12px)' }}>
-              <ChevronRight size={12} /> Launch Simulator
+          <div className="mt-5 flex w-full max-w-xs flex-col gap-2">
+            <button type="button" onClick={() => setShowVoiceModal(true)} className="btn btn-outline w-full">
+              <Mic size={15} aria-hidden /> Describe it by voice
+            </button>
+            <button type="button" onClick={handleTryDemo} className="btn btn-ghost w-full text-ink-3">
+              <ChevronRight size={14} aria-hidden /> Run a practice report
             </button>
           </div>
         )}
 
-        {/* Transcript card — with enter animation */}
+        {/* ── Transcript + preview ── */}
         {transcript && (
-          <div className="w-full max-w-md mt-6 animate-fade-in">
-            <div className="rounded-xl p-4 border border-white/5 shadow-2xl" style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(16px)' }}>
-              <p className="text-[10px] font-bold tracking-widest text-neutral-500 uppercase mb-2">Transcript</p>
-              <p className="text-[#d4d4d8] text-sm leading-relaxed">{transcript}</p>
+          <div className="mt-6 w-full max-w-md animate-fade-in text-left">
+            <div className="panel p-4">
+              <p className="data-label mb-2">Transcript</p>
+              <p className="text-sm leading-relaxed text-ink-2">{transcript}</p>
               {interimTranscript && (
-                <p className="text-[#52525b] text-[13px] leading-relaxed mt-1 italic">{interimTranscript.replace(transcript, '')}</p>
+                <p className="mt-1 text-sm italic leading-relaxed text-ink-3">
+                  {interimTranscript.replace(transcript, '')}
+                </p>
               )}
             </div>
 
-            {/* Preview card — extracted fields before submission */}
             {!isProcessing && (
-              <div className="bg-[#18181b]/60 backdrop-blur-xl border border-[#3b82f6]/20 shadow-2xl rounded-xl p-4 mt-3">
-                <p className="text-[10px] font-bold tracking-widest text-[#3b82f6] uppercase mb-2">Preview — What the AI will extract</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
-                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Type</p>
-                    <p className="text-xs text-[#fafafa] capitalize">{isDemo ? 'Keyword-detected' : 'Gemini-classified'}</p>
+              <div className="mt-3 rounded-xl border border-[color-mix(in_srgb,var(--info)_30%,transparent)] bg-[color-mix(in_srgb,var(--info)_6%,transparent)] p-4">
+                <p className="data-label mb-2 text-[var(--info)]">What will be filed</p>
+                <dl className="grid grid-cols-2 gap-2">
+                  <div className="well p-2.5">
+                    <dt className="data-label mb-0.5">Type</dt>
+                    <dd className="text-xs">{isDemo ? 'Keyword-detected' : 'AI-classified'}</dd>
                   </div>
-                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
-                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Urgency</p>
-                    <p className="text-xs text-[#fafafa] capitalize">{isDemo ? 'Rule-based' : 'AI-assessed'}</p>
+                  <div className="well p-2.5">
+                    <dt className="data-label mb-0.5">Urgency</dt>
+                    <dd className="text-xs">{isDemo ? 'Rule-based' : 'AI-assessed'}</dd>
                   </div>
-                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
-                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Location</p>
-                    <p className="text-xs text-[#fafafa]">{gpsCoords ? `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lng.toFixed(4)}` : 'Acquiring...'}</p>
+                  <div className="well p-2.5">
+                    <dt className="data-label mb-0.5">Location</dt>
+                    <dd className="mono text-xs">
+                      {gpsCoords ? `${gpsCoords.lat.toFixed(4)}, ${gpsCoords.lng.toFixed(4)}` : 'Acquiring…'}
+                    </dd>
                   </div>
-                  <div className="bg-[#09090b]/80 rounded-lg p-2 border border-zinc-800/60">
-                    <p className="text-[9px] font-bold tracking-widest text-[#71717a] uppercase">Confidence</p>
-                    <p className="text-xs text-[#fafafa]">{isDemo ? 'Keyword match' : 'AI confidence score'}</p>
+                  <div className="well p-2.5">
+                    <dt className="data-label mb-0.5">Confidence</dt>
+                    <dd className="text-xs">{isDemo ? 'Keyword match' : 'Score attached'}</dd>
                   </div>
-                </div>
+                </dl>
               </div>
+            )}
+
+            {!isProcessing && (
+              <button type="button" onClick={handleVoiceSubmit} className="btn btn-primary mt-3 w-full">
+                <Send size={15} aria-hidden /> Send report
+              </button>
             )}
           </div>
         )}
 
-        {transcript && !isProcessing && (
-          <button onClick={handleVoiceSubmit} className="mt-6 px-8 py-3 bg-[#fafafa] text-[#09090b] font-semibold rounded-lg border-none cursor-pointer flex items-center gap-2 shadow-lg">
-            <Send size={16} /> Submit Report
-          </button>
-        )}
-
+        {/* ── Processing ── */}
         {isProcessing && (
-          <div className="mt-6 flex flex-col items-center gap-3 text-[#a1a1aa]">
-            <div className="w-5 h-5 border-2 border-[#52525b] border-t-[#fafafa] rounded-full animate-spin" />
+          <div className="mt-6 flex flex-col items-center gap-3" role="status" aria-live="polite">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/15 border-t-white" aria-hidden />
             {extractionStep && (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-medium text-[#fafafa]">{extractionStepLabel[extractionStep]}</span>
-                <div className="flex gap-1.5 mt-1">
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-sm font-medium">{extractionStepLabel[extractionStep]}</span>
+                <div className="flex gap-1.5" aria-hidden>
                   {(['capturing-location', 'analyzing-transcript', 'creating-report'] as ExtractionStepKey[]).map((step) => {
                     const steps: ExtractionStepKey[] = ['capturing-location', 'analyzing-transcript', 'creating-report'];
-                    const currentIdx = steps.indexOf(extractionStep);
                     const stepIdx = steps.indexOf(step);
+                    const currentIdx = steps.indexOf(extractionStep);
                     return (
-                      <div
+                      <span
                         key={step}
-                        className={`w-2 h-2 rounded-full transition-colors ${
-                          stepIdx <= currentIdx ? 'bg-[#fafafa]' : 'bg-[#3f3f46]'
-                        }`}
+                        className={`h-1.5 w-6 rounded-full transition-colors ${stepIdx <= currentIdx ? 'bg-white' : 'bg-white/15'}`}
                       />
                     );
                   })}
@@ -475,25 +805,31 @@ export default function CitizenView() {
             )}
           </div>
         )}
-      </div>
+      </main>
 
-        {/* Voice Report button — secondary action */}
-        {!transcript && !isRecording && (
-          <button onClick={() => setShowVoiceModal(true)}
-            className="mt-4 px-5 py-2.5 bg-white/5 border border-white/10 text-neutral-300 rounded-full text-[11px] font-semibold tracking-wider flex items-center gap-2 transition-all hover:bg-white/10 hover:text-white"
-            style={{ backdropFilter: 'blur(12px)' }}>
-            <Mic size={14} /> Voice Report
-          </button>
-        )}
-
-      {/* VOICE MODAL — using VoiceRecorder component */}
+      {/* ── VOICE MODAL ── */}
       {showVoiceModal && (
-        <div role="dialog" aria-modal="true" aria-label="Voice Report"
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={handleVoiceModalClose}>
-          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[#fafafa]">Voice Report</h2>
-              <button onClick={handleVoiceModalClose} className="text-[#71717a] cursor-pointer bg-transparent border-none" aria-label="Close"><X size={20} /></button>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Voice report"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+          onClick={handleVoiceModalClose}
+        >
+          <div
+            className="panel w-full max-w-md p-5 sm:p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold">Voice report</h2>
+              <button
+                type="button"
+                onClick={handleVoiceModalClose}
+                aria-label="Close voice report"
+                className="btn btn-ghost btn-icon"
+              >
+                <X size={18} aria-hidden />
+              </button>
             </div>
 
             <VoiceRecorder
@@ -503,17 +839,20 @@ export default function CitizenView() {
               onStop={() => setIsRecording(false)}
             />
 
-            <p className="text-center text-[#a1a1aa] text-sm mb-4">
-              {isRecording ? 'Listening... Describe your emergency clearly' : 'Tap Start to begin recording, or type below'}
+            <p className="mb-4 text-center text-sm text-ink-2">
+              {isRecording
+                ? 'Listening — describe what happened, where, and who is hurt.'
+                : 'Press start to record, or type below.'}
             </p>
 
-            {/* Real-time transcript preview inside modal */}
             {transcript && (
-              <div className="bg-[#09090b] border border-zinc-800/60 rounded-lg p-3 mb-4">
-                <p className="text-[10px] font-bold tracking-widest text-[#71717a] uppercase mb-1">Live Transcript</p>
-                <p className="text-[#d4d4d8] text-[13px] leading-relaxed">{transcript}</p>
+              <div className="well mb-4 p-3">
+                <p className="data-label mb-1">Live transcript</p>
+                <p className="text-sm leading-relaxed text-ink-2">{transcript}</p>
                 {interimTranscript && (
-                  <p className="text-[#52525b] text-xs italic mt-1">{interimTranscript.replace(transcript, '')}</p>
+                  <p className="mt-1 text-xs italic text-ink-3">
+                    {interimTranscript.replace(transcript, '')}
+                  </p>
                 )}
               </div>
             )}
@@ -521,17 +860,28 @@ export default function CitizenView() {
             <textarea
               value={transcript}
               onChange={e => setTranscript(e.target.value)}
-              placeholder="Or type your emergency description here..."
+              placeholder="Or type what happened…"
               rows={3}
-              className="w-full bg-[#09090b] border border-[#27272a] rounded-lg p-4 text-sm text-[#fafafa] outline-none resize-y mb-4"
+              className="field mb-4 resize-y"
               aria-label="Emergency description"
             />
+
             <div className="flex gap-3">
-              <button onClick={handleToggleRecording} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none cursor-pointer transition-all" style={{ background: isRecording ? '#dc2626' : '#27272a', color: isRecording ? '#fff' : '#d4d4d8' }}>
-                <Mic size={16} className="inline mr-2 align-middle" /> {isRecording ? 'Stop' : 'Start'}
+              <button
+                type="button"
+                onClick={handleToggleRecording}
+                className={`btn flex-1 ${isRecording ? 'btn-danger' : 'btn-quiet'}`}
+                aria-pressed={isRecording}
+              >
+                <Mic size={15} aria-hidden /> {isRecording ? 'Stop' : 'Start'}
               </button>
-              <button onClick={() => { handleVoiceSubmit(); handleVoiceModalClose(); }} disabled={!transcript.trim()} className="flex-1 py-3 rounded-lg font-semibold text-sm border-none transition-all" style={{ cursor: transcript.trim() ? 'pointer' : 'not-allowed', background: transcript.trim() ? '#fafafa' : '#27272a', color: transcript.trim() ? '#09090b' : '#52525b' }}>
-                <Send size={16} className="inline mr-2 align-middle" /> Submit
+              <button
+                type="button"
+                onClick={() => { handleVoiceSubmit(); handleVoiceModalClose(); }}
+                disabled={!transcript.trim()}
+                className="btn btn-primary flex-1"
+              >
+                <Send size={15} aria-hidden /> Submit
               </button>
             </div>
           </div>

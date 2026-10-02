@@ -4,29 +4,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Incident, IncidentStatus, IncidentType, UrgencyLevel } from '../types/incident';
+import type {
+  CreateIncidentPayload,
+  Incident,
+  IncidentStatus,
+  IncidentType,
+  UrgencyLevel,
+} from '../types/incident';
 
 const POLL_INTERVAL_MS = 5000;
 const SSE_RETRY_MS = 3000;
 
-interface CreateInput {
-  type: IncidentType;
-  location: string;
-  description: string;
-  reporter: string;
-  coordinates: { lng: number; lat: number };
-  urgency?: UrgencyLevel;
-  urgency_reason?: string;
-  people_affected?: number;
-  condition?: string;
-  hazards?: string[];
-  transcript?: string;
-  reporter_email?: string;
-  confidence?: number;
-  consciousness?: boolean;
-  breathing?: boolean;
-  bleeding?: boolean;
-}
+/** Shared with the offline queue — see CreateIncidentPayload in types/incident. */
+type CreateInput = CreateIncidentPayload;
 
 interface ApiListResponse {
   success: boolean;

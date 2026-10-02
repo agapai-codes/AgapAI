@@ -124,6 +124,28 @@ export async function getIncidentById(id: string): Promise<Incident | null> {
   return result.length > 0 ? rowToIncident(result[0]) : null;
 }
 
+/**
+ * Look up an incident by the client-generated id the offline queue attaches to
+ * a queued POST. Throws if migration 007 has not run (column missing) — callers
+ * that only want dedupe must treat any throw as "dedupe unavailable".
+ */
+export async function findIncidentByClientRef(clientRef: string): Promise<Incident | null> {
+  const sql = getSql();
+  const result = (await sql`
+    SELECT i.id, i.type::text, i.location, i.description, i.status::text, i.reporter,
+           i.created_at, ST_X(i.geom) AS lng, ST_Y(i.geom) AS lat,
+           i.urgency, i.urgency_reason, i.people_affected, i.condition, i.hazards,
+           i.confidence, i.consciousness, i.breathing, i.bleeding, i.transcript,
+           i.assigned_responder_id, r.name AS assigned_responder_name,
+           i.resolution_notes, i.dispatched_at, i.resolved_at,
+           i.reporter_email
+    FROM incidents i
+    LEFT JOIN responders r ON i.assigned_responder_id = r.id
+    WHERE i.client_ref = ${clientRef}
+  `) as IncidentRow[];
+  return result.length > 0 ? rowToIncident(result[0]) : null;
+}
+
 export async function createIncident(
   type: IncidentType,
   location: string,
@@ -143,33 +165,62 @@ export async function createIncident(
     consciousness?: boolean;
     breathing?: boolean;
     bleeding?: boolean;
+    /** Optional idempotency key from the offline queue (migration 007). */
+    clientRef?: string;
   }
 ): Promise<Incident | null> {
   const sql = getSql();
   try {
-    const result = (await sql`
-      INSERT INTO incidents (type, location, description, reporter, geom,
-        urgency, urgency_reason, people_affected, condition, hazards, transcript,
-        reporter_email, confidence, consciousness, breathing, bleeding)
-      VALUES (${type}::incident_type, ${location}, ${description}, ${reporter},
-              ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
-              ${extra?.urgency || 'medium'},
-              ${extra?.urgency_reason || null},
-              ${extra?.people_affected || 1},
-              ${extra?.condition || null},
-              ${extra?.hazards || []},
-              ${extra?.transcript || null},
-              ${extra?.reporter_email || null},
-              ${extra?.confidence ?? 0.7},
-              ${extra?.consciousness ?? true},
-              ${extra?.breathing ?? true},
-              ${extra?.bleeding ?? false})
-      RETURNING id, type::text, location, description, status::text, reporter,
-                created_at, ST_X(geom) AS lng, ST_Y(geom) AS lat,
-                urgency, urgency_reason, people_affected, condition, hazards,
-                confidence, consciousness, breathing, bleeding,
-                reporter_email
-    `) as IncidentRow[];
+    // Only reference the client_ref column when a key was actually supplied,
+    // so requests without one run the exact same SQL as before migration 007.
+    const result = (extra?.clientRef
+      ? (await sql`
+          INSERT INTO incidents (type, location, description, reporter, geom,
+            urgency, urgency_reason, people_affected, condition, hazards, transcript,
+            reporter_email, confidence, consciousness, breathing, bleeding, client_ref)
+          VALUES (${type}::incident_type, ${location}, ${description}, ${reporter},
+                  ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
+                  ${extra.urgency || 'medium'},
+                  ${extra.urgency_reason || null},
+                  ${extra.people_affected || 1},
+                  ${extra.condition || null},
+                  ${extra.hazards || []},
+                  ${extra.transcript || null},
+                  ${extra.reporter_email || null},
+                  ${extra.confidence ?? 0.7},
+                  ${extra.consciousness ?? true},
+                  ${extra.breathing ?? true},
+                  ${extra.bleeding ?? false},
+                  ${extra.clientRef})
+          RETURNING id, type::text, location, description, status::text, reporter,
+                    created_at, ST_X(geom) AS lng, ST_Y(geom) AS lat,
+                    urgency, urgency_reason, people_affected, condition, hazards,
+                    confidence, consciousness, breathing, bleeding,
+                    reporter_email
+        `)
+      : (await sql`
+          INSERT INTO incidents (type, location, description, reporter, geom,
+            urgency, urgency_reason, people_affected, condition, hazards, transcript,
+            reporter_email, confidence, consciousness, breathing, bleeding)
+          VALUES (${type}::incident_type, ${location}, ${description}, ${reporter},
+                  ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
+                  ${extra?.urgency || 'medium'},
+                  ${extra?.urgency_reason || null},
+                  ${extra?.people_affected || 1},
+                  ${extra?.condition || null},
+                  ${extra?.hazards || []},
+                  ${extra?.transcript || null},
+                  ${extra?.reporter_email || null},
+                  ${extra?.confidence ?? 0.7},
+                  ${extra?.consciousness ?? true},
+                  ${extra?.breathing ?? true},
+                  ${extra?.bleeding ?? false})
+          RETURNING id, type::text, location, description, status::text, reporter,
+                    created_at, ST_X(geom) AS lng, ST_Y(geom) AS lat,
+                    urgency, urgency_reason, people_affected, condition, hazards,
+                    confidence, consciousness, breathing, bleeding,
+                    reporter_email
+        `)) as IncidentRow[];
     if (result.length === 0) return null;
     return rowToIncident(result[0]);
   } catch (err) {

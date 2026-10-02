@@ -9,19 +9,28 @@ interface FirstAidPanelProps {
 
 export default function FirstAidPanel({ instruction, incidentType }: FirstAidPanelProps) {
   return (
-    <Card className="bg-[#10B981]/5 border-[#10B981]/30 rounded-none">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 bg-[#10B981]/20 flex items-center justify-center border border-[#10B981]/30">
-            <span className="text-lg">🏥</span>
-          </div>
-          <div>
-            <p className="text-[#10B981] font-bold text-sm">FIRST-AID PROTOCOL</p>
-            <p className="text-[#6B7280] text-xs mono">VALIDATED EMERGENCY GUIDELINES</p>
+    <Card className="panel overflow-hidden">
+      <CardContent className="p-0">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-[rgba(16,185,129,0.28)] bg-[rgba(16,185,129,0.08)] px-4 py-3">
+          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-[rgba(16,185,129,0.35)] bg-[rgba(16,185,129,0.16)] text-lg" aria-hidden>
+            🏥
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold uppercase tracking-wide text-[var(--success)]">
+              First-Aid Protocol
+            </p>
+            <p className="data-label data-label-tight truncate">
+              {incidentType ? `${incidentType} · ` : ''}Validated emergency guidelines
+            </p>
           </div>
         </div>
-        <div className="bg-[#080C14] p-4 border border-[#10B981]/20">
-          <p className="text-[#F9FAFB] text-sm leading-relaxed">{instruction}</p>
+
+        {/* Instruction */}
+        <div className="p-4">
+          <div className="well p-3.5">
+            <p className="text-[14px] leading-relaxed text-ink-1">{instruction}</p>
+          </div>
         </div>
       </CardContent>
     </Card>
