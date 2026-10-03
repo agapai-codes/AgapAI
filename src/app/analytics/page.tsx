@@ -53,7 +53,7 @@ function BarRow({ label, count, total, ink, mono }: {
 }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
-    <li className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3">
+    <li className="grid grid-cols-[7rem_1fr_4.5rem] items-center gap-3">
       <span className={`truncate text-[12px] text-ink-2 ${mono ? 'mono uppercase' : ''}`}>{label}</span>
       <span className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
         <span
@@ -63,7 +63,7 @@ function BarRow({ label, count, total, ink, mono }: {
       </span>
       <span className="mono text-right text-[12px] text-ink-3">
         {count}
-        <span className="ml-1 text-ink-3/70">{pct}%</span>
+        <span className="ml-1 text-ink-3/70">({pct}%)</span>
       </span>
     </li>
   );

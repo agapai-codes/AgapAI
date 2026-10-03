@@ -1,10 +1,11 @@
+@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@tailwind base;
 @custom-variant dark (&:is(.dark *));
-@tailwind components;
-@tailwind utilities;
+@source "../views";
+@source "../components";
+@source "../app";
 
 /* ═══════════════════════════════════════════════════════════════════════
    AGAPAI DESIGN SYSTEM
@@ -129,9 +130,11 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
   }
 
   body {
+    overflow-x: hidden;
     background: var(--surface-0);
     color: var(--text-1);
     font-family: 'Inter', var(--font-sans, ui-sans-serif), system-ui,

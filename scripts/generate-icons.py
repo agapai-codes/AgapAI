@@ -1,90 +1,95 @@
 #!/usr/bin/env python3
-"""Generate PWA icon set for AgapAI.
+"""Generate PWA icon set for AgapAI using the official brand logo emblem.
 
-Design: emergency beacon pin (map pin + pulse rings) on a dark tile.
-Deliberately NOT a red cross -- the Red Cross emblem is protected.
+Design:
+  Crop the hands circle emblem + three stars from public/logo.jpg,
+  excluding the "AgapAI" wordmark and baybayin script.
+  Pad onto a native white tile.
 
 Variants:
-  * "any"       -- rounded corners, artwork occupies most of the tile
-  * "maskable"  -- full-bleed square, artwork inside the 80% safe zone
-  * apple touch  -- 180px, no transparency, slight corner rounding
+  * "any"        -- rounded corners (rad 0.18), artwork scaled to 0.88 safe zone
+  * "maskable"   -- full-bleed square, artwork inside 0.62 safe zone
+  * apple touch  -- 180px, slight corner rounding (rad 0.10), 0.78 safe zone
+  * favicon      -- multi-frame ICO (16, 32, 48) + 64px PNG
 
 Usage: python3 scripts/generate-icons.py
 """
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
-
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
+import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "public" / "icons"
+LOGO_PATH = ROOT / "public" / "logo.jpg"
 
-BG = (10, 10, 13, 255)  # #0A0A0D
-PIN = (239, 68, 68, 255)  # red-500
-PIN_EDGE = (254, 202, 202, 255)  # red-200
-HOLE = (10, 10, 13, 255)
-RING = (239, 68, 68)
+BG = (255, 255, 255, 255)  # Native logo white background
 
 
-def _lerp(a: int, b: int, t: float) -> int:
-    return int(round(a + (b - a) * t))
+def extract_emblem(logo_path: Path) -> tuple[Image.Image, tuple[int, int, int, int]]:
+    """Programmatically detect and crop the emblem from logo.jpg, padded to square."""
+    img = Image.open(logo_path).convert("RGB")
+    arr = np.array(img, dtype=np.int16)
+    diff = 255 - np.min(arr, axis=2)
+
+    # Scan for separator row between emblem and wordmark (~y=250..255)
+    sep_y = 251
+    for y in range(230, 270):
+        if np.sum(diff[y] > 20) == 0:
+            sep_y = y
+            break
+
+    # Find bounding box of emblem above the separator row
+    # Threshold 20 ignores JPEG compression noise
+    emblem_mask = diff[:sep_y] > 20
+    ys, xs = np.where(emblem_mask)
+
+    min_x = max(0, int(xs.min()) - 1)
+    max_x = min(img.width, int(xs.max()) + 2)
+    min_y = max(0, int(ys.min()) - 1)
+    max_y = min(sep_y, int(ys.max()) + 2)
+
+    crop_box = (min_x, min_y, max_x, max_y)
+    crop = img.crop(crop_box)
+
+    # Clean any residual JPEG artifacts outside the swoosh at the bottom edge (y >= 244)
+    crop_arr = np.array(crop)
+    for y in range(len(crop_arr)):
+        orig_y = y + min_y
+        if orig_y >= 244:
+            for x in range(len(crop_arr[y])):
+                orig_x = x + min_x
+                if orig_x > 215 or orig_x < 130:
+                    crop_arr[y, x] = [255, 255, 255]
+
+    cleaned_crop = Image.fromarray(crop_arr)
+
+    # Pad crop to a square on a white tile
+    w, h = cleaned_crop.size
+    dim = max(w, h)
+    sq = Image.new("RGBA", (dim, dim), BG)
+    pad_x = (dim - w) // 2
+    pad_y = (dim - h) // 2
+    sq.paste(cleaned_crop, (pad_x, pad_y))
+
+    return sq, crop_box
 
 
-def draw_mark(size: int, safe: float, ss: int = 4) -> Image.Image:
-    """Render the beacon mark at `size`, with artwork scaled by `safe` (0..1)."""
-    S = size * ss
-    img = Image.new("RGBA", (S, S), BG)
-    d = ImageDraw.Draw(img, "RGBA")
+def draw_mark(base_emblem: Image.Image, size: int, safe: float) -> Image.Image:
+    """Render the emblem at `size`, with artwork scaled by `safe` (0..1) on a white tile."""
+    art_size = int(round(size * safe))
+    art = base_emblem.resize((art_size, art_size), Image.LANCZOS)
 
-    cx, cy = S / 2, S * 0.47
-    unit = S * safe
+    # Crisp sharpening on tiny favicon scales so details pop
+    if size <= 32:
+        art = art.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
 
-    # Pulse rings (faint, expanding outward)
-    for i, (rad, alpha) in enumerate(((0.34, 46), (0.44, 26))):
-        r = rad * unit
-        w = max(2, int(0.022 * unit))
-        d.ellipse(
-            [cx - r, cy - r, cx + r, cy + r],
-            outline=(RING[0], RING[1], RING[2], alpha),
-            width=w,
-        )
-
-    # Pin head
-    head_r = 0.215 * unit
-    d.ellipse(
-        [cx - head_r, cy - head_r, cx + head_r, cy + head_r],
-        fill=PIN,
-        outline=PIN_EDGE,
-        width=max(1, int(0.012 * unit)),
-    )
-
-    # Pin tail (triangle from head sides down to the point)
-    tip_y = cy + 0.46 * unit
-    half = head_r * 0.86
-    d.polygon(
-        [(cx - half, cy + head_r * 0.15), (cx + half, cy + head_r * 0.15), (cx, tip_y)],
-        fill=PIN,
-    )
-
-    # Re-draw head over the tail seam, then punch the hole
-    d.ellipse([cx - head_r, cy - head_r, cx + head_r, cy + head_r], fill=PIN)
-    hole_r = 0.082 * unit
-    d.ellipse(
-        [cx - hole_r, cy - hole_r, cx + hole_r, cy + hole_r],
-        fill=HOLE,
-    )
-    # Inner glint so the hole reads as a lens on very small sizes
-    glint_r = hole_r * 0.42
-    d.ellipse(
-        [cx - glint_r - hole_r * 0.1, cy - glint_r - hole_r * 0.1,
-         cx - hole_r * 0.1 + glint_r * 0.1, cy - hole_r * 0.1 + glint_r * 0.1],
-        fill=(255, 255, 255, 235),
-    )
-
-    return img.resize((size, size), Image.LANCZOS)
+    tile = Image.new("RGBA", (size, size), BG)
+    offset = (size - art_size) // 2
+    tile.paste(art, (offset, offset))
+    return tile
 
 
 def rounded(img: Image.Image, radius_frac: float) -> Image.Image:
@@ -104,6 +109,9 @@ def rounded(img: Image.Image, radius_frac: float) -> Image.Image:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
+    base_emblem, crop_box = extract_emblem(LOGO_PATH)
+    print(f"Extracted emblem with crop box: {crop_box} -> square base {base_emblem.size}")
+
     specs = [
         # name, size, safe-zone fraction, rounded corner fraction (0 = full bleed)
         ("icon-192.png", 192, 0.88, 0.18),
@@ -114,20 +122,25 @@ def main() -> None:
     ]
 
     for name, size, safe, rad in specs:
-        img = draw_mark(size, safe)
+        img = draw_mark(base_emblem, size, safe)
         if rad:
             img = rounded(img, rad)
         img.save(OUT / name, "PNG", optimize=True)
         print(f"wrote {OUT / name}")
 
-    # Favicon: transparent-friendly square, keep it un-rounded at 32/48
-    ico_imgs = [draw_mark(s, 0.9, ss=4) for s in (16, 32, 48)]
-    ico_imgs[0].save(ROOT / "src" / "app" / "favicon.ico",
-                     sizes=[(16, 16), (32, 32), (48, 48)])
-    print(f"wrote {ROOT / 'src' / 'app' / 'favicon.ico'}")
+    # Favicon: multi-frame ICO (16, 32, 48) built from >=48px base so PIL retains all frames
+    ico_imgs = {s: draw_mark(base_emblem, s, 0.90) for s in (16, 32, 48)}
+    ico_path = ROOT / "src" / "app" / "favicon.ico"
+    ico_imgs[48].save(
+        ico_path,
+        format="ICO",
+        sizes=[(16, 16), (32, 32), (48, 48)],
+        append_images=[ico_imgs[16], ico_imgs[32]],
+    )
+    print(f"wrote {ico_path}")
 
     # Also mirror a favicon into /public for SW precache consistency
-    draw_mark(64, 0.9).save(OUT / "favicon-64.png", "PNG", optimize=True)
+    draw_mark(base_emblem, 64, 0.90).save(OUT / "favicon-64.png", "PNG", optimize=True)
     print(f"wrote {OUT / 'favicon-64.png'}")
 
     # Quick sanity: verify no fully-transparent output
