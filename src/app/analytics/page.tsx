@@ -141,7 +141,7 @@ export default function AnalyticsPage() {
       {/* Header */}
       <header className="chrome sticky top-0 z-40 flex h-14 items-center justify-between gap-3 px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Image src="/logo.jpg" alt="" width={22} height={22} className="rounded-md" />
+          <Image src="/emblem.png" alt="AgapAI emblem" width={22} height={22} className="rounded-md" />
           <span className="text-sm font-extrabold uppercase tracking-[0.14em]">
             Agap<span className="text-[var(--critical)]">AI</span>
           </span>

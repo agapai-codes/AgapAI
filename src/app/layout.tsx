@@ -54,6 +54,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <TooltipProvider>
           <LinkStatusBanner />
           {children}
+        <script
+          defer
+          src="https://pulse.joalvergs.tech/p.js"
+          data-site="agapai"
+        />
+
         </TooltipProvider>
       </body>
     </html>

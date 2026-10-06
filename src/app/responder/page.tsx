@@ -36,7 +36,7 @@ function ResponderLogin({ onLogin, signIn }: { onLogin: () => void; signIn: (ema
         {/* Identity */}
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-[var(--line)] bg-surface-2 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-            <Image src="/logo.jpg" alt="" width={32} height={32} className="rounded-md" />
+            <Image src="/emblem.png" alt="AgapAI emblem" width={32} height={32} className="rounded-md" />
           </div>
           <h1 className="text-2xl font-extrabold uppercase tracking-[0.16em]">
             Agap<span className="text-[var(--critical)]">AI</span>

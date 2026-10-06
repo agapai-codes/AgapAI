@@ -248,7 +248,7 @@ export default function DispatcherDashboard() {
         <header className="chrome flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 sm:px-4">
           {/* Left: identity + link state */}
           <div className="flex items-center gap-3">
-            <Image src="/logo.jpg" alt="" width={22} height={22} className="rounded-md" />
+            <Image src="/emblem.png" alt="AgapAI emblem" width={22} height={22} className="rounded-md" />
             <span className="font-extrabold text-sm tracking-wider uppercase">
               Agap<span className="text-[var(--critical)]">AI</span>
             </span>

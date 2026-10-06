@@ -421,7 +421,7 @@ export default function CitizenView() {
   const header = (
     <header className="chrome sticky top-0 z-30 h-14 shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6">
       <div className="flex items-center gap-2.5 min-w-0">
-        <Image src="/logo.jpg" alt="" width={24} height={24} className="rounded-md shrink-0" />
+        <Image src="/emblem.png" alt="AgapAI emblem" width={24} height={24} className="rounded-md shrink-0" />
         <span className="font-extrabold text-sm tracking-wider uppercase">
           Agap<span className="text-[var(--critical)]">AI</span>
         </span>
