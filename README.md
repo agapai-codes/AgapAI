@@ -4,7 +4,21 @@ AI-assisted emergency reporting and dispatch. Citizens report an emergency by
 voice or one-tap SOS; the app triages it, and dispatchers and field responders
 work the queue on a live command centre.
 
-Built with Next.js 16 (App Router) · React 19 · Tailwind v4 · Neon Postgres · Gemini.
+Built with Next.js 16 (App Router) · React 19 · Tailwind v4 · Neon Postgres · Gemini.  
+**Live Production URL:** [https://agapai.joalvergs.tech/](https://agapai.joalvergs.tech/)
+
+---
+
+## 📄 Startup Proposal & Technopreneurship Deliverables
+
+All academic, business, and competition deliverables are consolidated in [`docs/`](./docs/):
+
+* **[Startup Proposal Final (DOCX)](./docs/Agap_AI_Startup_Proposal_Final.docx):** Canonical 15-section technopreneurship startup proposal.
+* **[10-Minute Business Pitch Script](./docs/Agap_AI_10_Minute_Business_Pitch_Script.md) ([DOCX](./docs/Agap_AI_10_Minute_Business_Pitch_Script.docx)):** Complete spoken pitch walkthrough mapped across 8 core slides.
+* **[Presentation Slide Deck (PPTX)](./docs/Agap_AI_Pitch_Deck.pptx) / [(PDF)](./docs/Agap_AI_Pitch_Deck.pdf):** Presentation slides for judges, evaluators, and academic panels.
+* **[Live Demo Protocol (90s)](./docs/Agap_AI_Live_Demo_Guide.md):** Step-by-step verification script for `agapai.joalvergs.tech`.
+* **[Academic Rubric Defense](./docs/Agap_AI_Technopreneurship_Academic_Review.md):** BCA172 rubric alignment matrix, defense Q&A, and BMC justifications.
+* **[System Reliability & Edge Cases](./docs/Agap_AI_Reliability_and_Edge_Cases.md):** Engineering specs for offline idempotency, captive portals, indoor GPS degradation, and spam filtering.
 
 ---
 
